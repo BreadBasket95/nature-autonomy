@@ -18,6 +18,14 @@
 
 nature::msg::Path new_path;
 
+/**
+ * @brief Entry point for the path manager node.
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ * @return Exit code.
+ * @details Publishes a new waypoint path after a configurable delay to
+ *          demonstrate dynamic path updates.
+ */
 int main(int argc, char **argv)
 {
     auto n = nature::node::init_node(argc,argv,"path_manager");

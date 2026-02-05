@@ -30,25 +30,48 @@ namespace traverselib {
 
 class Plane {
 public:
+	/**
+	 * @brief Construct a plane with zero coefficients.
+	 * @details Initializes a_, b_, c_ to 0 so the plane represents z=0.
+	 *          Used by traversability estimation when seeding fits.
+	 */
 	Plane() {
 		a_ = 0.0f;
 		b_ = 0.0f;
 		c_ = 0.0f;
 	}
 
-	/// Plane copy contstructor
+	/**
+	 * @brief Copy-construct a plane.
+	 * @param p Plane to copy.
+	 * @details Copies plane coefficients directly; used when duplicating fits.
+	 */
 	Plane(const Plane &p) {
 		a_ = p.a_;
 		b_ = p.b_;
 		c_ = p.c_;
 	}
 
+	/**
+	 * @brief Set plane coefficients for z = a*x + b*y + c.
+	 * @param a Plane coefficient for x.
+	 * @param b Plane coefficient for y.
+	 * @param c Plane offset.
+	 * @details Directly assigns the coefficients without validation.
+	 */
 	void SetCoeffs(float a, float b, float c) {
 		a_ = a;
 		b_ = b;
 		c_ = c;
 	}
 
+	/**
+	 * @brief Fit a plane to a set of 3D points.
+	 * @param points Input points (x,y,z) to fit.
+	 * @details Uses least squares to solve for plane coefficients. For
+	 *          degenerate cases with <=3 points, it defaults to a flat plane
+	 *          at the mean z height. This is used by the FTTE voxel analysis.
+	 */
 	void FitToPoints(std::vector<glm::vec3> points) {
 		int np = (int)points.size();
 		if (np <= 0) {
@@ -81,16 +104,33 @@ public:
 		c_ = (float)x(2,0);
 	}
 
+	/**
+	 * @brief Compute the plane height at a given (x,y).
+	 * @param x X coordinate.
+	 * @param y Y coordinate.
+	 * @return Z height on the plane.
+	 * @details Evaluates z = a*x + b*y + c.
+	 */
 	float GetHeightAt(float x, float y) {
 		float z = a_ * x + b_ * y + c_;
 		return z;
 	}
 
+	/**
+	 * @brief Get the plane coefficients as a vector.
+	 * @return glm::vec3 containing (a,b,c).
+	 * @details Useful for passing plane parameters to other algorithms.
+	 */
 	glm::vec3 GetCoeffs() {
 		glm::vec3 coeffs(a_, b_, c_);
 		return coeffs;
 	}
 
+	/**
+	 * @brief Compute the plane slope magnitude.
+	 * @return Slope magnitude sqrt(a^2 + b^2).
+	 * @details The slope represents terrain steepness used in traversability.
+	 */
 	float GetSlope() {
 		// magnitude of the gradient
 		float s = sqrt(a_*a_ + b_*b_);

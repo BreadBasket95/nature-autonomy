@@ -24,6 +24,13 @@ float cull_lidar_points_dist_sqr = 10000.0f;
 float blanking_distance = 0.0f;
 float blanking_distance_sqr = 0.0f;
 
+/**
+ * @brief Compute squared distance between a lidar point and the vehicle pose.
+ * @param odom_pose Vehicle position from odometry.
+ * @param point Lidar point in the same frame.
+ * @return Squared Euclidean distance.
+ * @details Used for culling and blanking points around the vehicle.
+ */
 double CalcLidarPointToRobotDistanceSquared(const nature::msg::Point& odom_pose, const nature::msg::Point32& point){
 	double dx = odom_pose.x - point.x;
 	double dy = odom_pose.y - point.y;
@@ -31,6 +38,13 @@ double CalcLidarPointToRobotDistanceSquared(const nature::msg::Point& odom_pose,
 	return (dx*dx + dy*dy + dz*dz);
 }
 
+/**
+ * @brief Choose the best-matching pose for a received point cloud.
+ * @param pose_to_use Output pose selected from the pose buffer.
+ * @param rcv_cloud Incoming point cloud message.
+ * @return Time difference (seconds) between the selected pose and the cloud.
+ * @details Finds the pose whose timestamp is closest to the cloud time.
+ */
 double GetPoseToUse(nature::msg::Odometry & pose_to_use, nature::msg::PointCloud2Ptr rcv_cloud){
   double dt = 1.0;
   for (int i=0;i<current_pose_list.size();i++){
@@ -43,6 +57,12 @@ double GetPoseToUse(nature::msg::Odometry & pose_to_use, nature::msg::PointCloud
 	return dt;
 }
 
+/**
+ * @brief Handle a point cloud already registered into the odom frame.
+ * @param rcv_cloud Incoming point cloud message.
+ * @details Converts the cloud, applies filtering/culling, updates the elevation
+ *          grid, and marks the grid as created.
+ */
 void PointCloudCallbackRegistered(nature::msg::PointCloud2Ptr rcv_cloud){
 	// assumes point cloud is already registered to odom frame
 	nature::msg::PointCloud point_cloud;
@@ -87,6 +107,12 @@ void PointCloudCallbackRegistered(nature::msg::PointCloud2Ptr rcv_cloud){
 	}
 }
 
+/**
+ * @brief Handle a point cloud in the sensor frame (unregistered).
+ * @param rcv_cloud Incoming point cloud message.
+ * @details Uses the nearest odometry pose to transform points into odom, then
+ *          filters/culls and updates the elevation grid.
+ */
 void PointCloudCallbackUnregistered(nature::msg::PointCloud2Ptr rcv_cloud){
 	nature::msg::PointCloud point_cloud;
 	
@@ -134,6 +160,11 @@ void PointCloudCallbackUnregistered(nature::msg::PointCloud2Ptr rcv_cloud){
 		grid_created = true;
 	}
 }
+/**
+ * @brief Dispatch point cloud handling based on registration setting.
+ * @param rcv_cloud Incoming point cloud message.
+ * @details Calls registered or unregistered callback depending on configuration.
+ */
 void PointCloudCallback(nature::msg::PointCloud2Ptr rcv_cloud){
 	if (use_registered){
 		PointCloudCallbackRegistered(rcv_cloud);
@@ -143,6 +174,11 @@ void PointCloudCallback(nature::msg::PointCloud2Ptr rcv_cloud){
 	}
 }
 
+/**
+ * @brief Handle incoming odometry and update pose buffer.
+ * @param rcv_odom Incoming odometry message.
+ * @details Stores the most recent pose and maintains a bounded history.
+ */
 void OdometryCallback(nature::msg::OdometryPtr rcv_odom){
 	current_pose = *rcv_odom;
 	odom_rcvd = true;
@@ -150,6 +186,14 @@ void OdometryCallback(nature::msg::OdometryPtr rcv_odom){
 	if (current_pose_list.size()>50) current_pose_list.erase(current_pose_list.begin());
 }
 
+/**
+ * @brief Entry point for the perception node.
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ * @return Exit code.
+ * @details Initializes subscriptions, configures the elevation grid, and
+ *          publishes occupancy grids for planning and visualization.
+ */
 int main(int argc, char *argv[]) {
 
 	grid_created = false;

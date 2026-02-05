@@ -24,6 +24,11 @@ float lat_rcvd = 0.0f;
 float lon_rcvd = 0.0f;
 float alt_rcvd = 0.0f;
 
+/**
+ * @brief Handle incoming GPS fixes.
+ * @param rcv_fix Incoming NavSatFix message.
+ * @details Captures the first fix to establish the local origin.
+ */
 void NavSatCallback(nature::msg::NavSatFixPtr rcv_fix){
     if (!fix_rcvd){
         lat_rcvd = rcv_fix->latitude;
@@ -33,6 +38,14 @@ void NavSatCallback(nature::msg::NavSatFixPtr rcv_fix){
   fix_rcvd = true;
 }
 
+/**
+ * @brief Entry point for the GPS-to-ENU waypoint converter.
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ * @return Exit code.
+ * @details Loads GPS waypoints, converts them to UTM and then ENU relative
+ *          to the first received fix, and publishes a Path.
+ */
 int main(int argc, char **argv){
 
     auto n = nature::node::init_node(argc,argv,"gps_to_enu_node");

@@ -59,46 +59,143 @@ namespace coordinate_system{
 class CoordinateConverter{
  public:
 
-  /// Create a CoordinateConverter
+  /**
+   * @brief Construct a coordinate converter with WGS84 as default.
+   * @details Initializes the reference ellipsoid and local origin transforms.
+   */
   CoordinateConverter();
 
-  /// Set the reference ellipsoid using codes defined in ellipsoid.h
+  /**
+   * @brief Set the reference ellipsoid by numeric code.
+   * @param ellips Reference ellipsoid id (see ellipsoid.h).
+   * @details Updates ellipsoid constants and recomputes cached values.
+   */
   void SetReferenceEllipsoid(int ellips);
 
+  /**
+   * @brief Convert latitude/longitude/altitude to ECEF.
+   * @param lla Input LLA coordinates.
+   * @return ECEF coordinates.
+   * @details Uses the configured reference ellipsoid.
+   */
   coordinate_system::ECEF LLA2ECEF(coordinate_system::LLA lla);
   
+  /**
+   * @brief Convert ECEF to latitude/longitude/altitude.
+   * @param ecef Input ECEF coordinates.
+   * @return LLA coordinates.
+   * @details Uses the configured reference ellipsoid.
+   */
   coordinate_system::LLA ECEF2LLA(coordinate_system::ECEF ecef);
   
+  /**
+   * @brief Convert UTM to latitude/longitude/altitude.
+   * @param utm Input UTM coordinates.
+   * @return LLA coordinates.
+   * @details Uses the configured reference ellipsoid.
+   */
   coordinate_system::LLA UTM2LLA(coordinate_system::UTM utm);
  
+  /**
+   * @brief Convert latitude/longitude/altitude to UTM.
+   * @param lla Input LLA coordinates.
+   * @return UTM coordinates with zone.
+   * @details Uses the configured reference ellipsoid.
+   */
   coordinate_system::UTM LLA2UTM(coordinate_system::LLA lla);
 
+  /**
+   * @brief Convert UTM to ECEF.
+   * @param utm Input UTM coordinates.
+   * @return ECEF coordinates.
+   * @details Performs UTM->LLA->ECEF conversion.
+   */
   coordinate_system::ECEF UTM2ECEF(coordinate_system::UTM utm);
   
+  /**
+   * @brief Convert ECEF to UTM.
+   * @param ecef Input ECEF coordinates.
+   * @return UTM coordinates with zone.
+   * @details Performs ECEF->LLA->UTM conversion.
+   */
   coordinate_system::UTM ECEF2UTM(coordinate_system::ECEF ecef);
   
+  /**
+   * @brief Convert ENU to ECEF.
+   * @param enu Input ENU coordinates.
+   * @return ECEF coordinates.
+   * @details Uses the current local origin and rotation matrices.
+   */
   coordinate_system::ECEF ENU2ECEF(coordinate_system::ENU enu);
   
+  /**
+   * @brief Convert ECEF to ENU.
+   * @param ecef Input ECEF coordinates.
+   * @return ENU coordinates.
+   * @details Uses the current local origin and rotation matrices.
+   */
   coordinate_system::ENU ECEF2ENU(coordinate_system::ECEF ecef);
 
+  /**
+   * @brief Convert ENU to LLA.
+   * @param enu Input ENU coordinates.
+   * @return LLA coordinates.
+   * @details Performs ENU->ECEF->LLA conversion.
+   */
   coordinate_system::LLA ENU2LLA(coordinate_system::ENU enu);
 
+  /**
+   * @brief Convert LLA to ENU.
+   * @param lla Input LLA coordinates.
+   * @return ENU coordinates.
+   * @details Performs LLA->ECEF->ENU conversion relative to local origin.
+   */
   coordinate_system::ENU LLA2ENU(coordinate_system::LLA lla);
 
+  /**
+   * @brief Convert ENU to UTM.
+   * @param enu Input ENU coordinates.
+   * @return UTM coordinates.
+   * @details Performs ENU->LLA->UTM conversion.
+   */
   coordinate_system::UTM ENU2UTM(coordinate_system::ENU enu);
 
+  /**
+   * @brief Convert UTM to ENU.
+   * @param utm Input UTM coordinates.
+   * @return ENU coordinates.
+   * @details Performs UTM->LLA->ENU conversion relative to local origin.
+   */
   coordinate_system::ENU UTM2ENU(coordinate_system::UTM utm);
 
-  /// Set the local origin in UTM coordinates.
+  /**
+   * @brief Set the local origin in UTM coordinates.
+   * @param utm Local origin in UTM.
+   * @details Updates internal origin and rotation matrices.
+   */
   void SetLocalOrigin(coordinate_system::UTM utm);
 
-  /// Set the local origin in Lat-Long-Alt coordinates.
+  /**
+   * @brief Set the local origin in LLA coordinates.
+   * @param lla Local origin in LLA.
+   * @details Updates internal origin and rotation matrices.
+   */
   void SetLocalOrigin(coordinate_system::LLA lla);
 
-  /// Set the local origin in LLA without using a structure
+  /**
+   * @brief Set the local origin from scalar LLA values.
+   * @param lat Latitude in degrees.
+   * @param lon Longitude in degrees.
+   * @param alt Altitude in meters.
+   * @details Convenience overload for callers without LLA structs.
+   */
   void SetLocalOrigin(double lat, double lon, double alt);
 
-  /// Set the local origin in ECEF coordinates.
+  /**
+   * @brief Set the local origin in ECEF coordinates.
+   * @param ecef Local origin in ECEF.
+   * @details Updates internal origin and rotation matrices.
+   */
   void SetLocalOrigin(coordinate_system::ECEF ecef);
 
  private:
@@ -114,7 +211,17 @@ class CoordinateConverter{
   double e2_; 
   double one_minus_e2; 
 
+  /**
+   * @brief Determine the UTM zone letter for a latitude.
+   * @param lat Latitude in degrees.
+   * @return UTM zone letter.
+   * @details Used internally when computing UTM outputs.
+   */
   char UTMLetterDesignator(double lat);
+  /**
+   * @brief Compute rotation matrices based on the local origin.
+   * @details Precomputes ENU/ECEF transforms for faster conversions.
+   */
   void SetMatrices();
 };
 

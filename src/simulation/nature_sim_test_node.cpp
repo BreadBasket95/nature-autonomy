@@ -6,12 +6,25 @@
 #include "nature/perception/point_cloud_generator.h"
 
 nature::msg::Twist twist;
+/**
+ * @brief Update the simulated twist command from incoming control messages.
+ * @param rcv_msg Incoming twist command.
+ * @details Updates throttle, braking, and steering fields used in simulation.
+ */
 void TwistCallback(nature::msg::TwistPtr rcv_msg){
 	twist.linear.x = rcv_msg->linear.x; // throttle
 	twist.linear.y = rcv_msg->linear.y; // braking
 	twist.angular.z = rcv_msg->angular.z; // steering
 }
 
+/**
+ * @brief Entry point for the simulation test node.
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ * @return Exit code.
+ * @details Publishes synthetic odometry and point clouds and accepts control
+ *          commands to drive a simple kinematic simulation.
+ */
 int main(int argc, char **argv){
 
   auto n = nature::node::init_node(argc,argv,"nature_simulation_test_node");

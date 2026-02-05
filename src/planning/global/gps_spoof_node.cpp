@@ -14,6 +14,14 @@
 #include "nature/messaging/message_types.h"
 #include "nature/node/node_proxy.h"
 
+/**
+ * @brief Entry point for the GPS spoofing node.
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ * @return Exit code.
+ * @details Publishes a fixed NavSatFix at a constant rate for testing
+ *          downstream GPS/ENU conversion and planning nodes.
+ */
 int main(int argc, char **argv) {
   auto n = nature::node::init_node(argc, argv, "gps_spoof_node");
 

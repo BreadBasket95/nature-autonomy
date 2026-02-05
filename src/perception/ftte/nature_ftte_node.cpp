@@ -16,7 +16,14 @@
 // nature includes
 #include "nature/perception/ftte/voxel_grid.h"
 
-/// Convert any type to a string
+/**
+ * @brief Convert a value to a zero-padded string.
+ * @tparam T Type of the value.
+ * @param x Value to convert.
+ * @param zero_padding Minimum width with leading zeros.
+ * @return Zero-padded string representation.
+ * @details Used to generate consistent filenames for plot outputs.
+ */
 template <class T>
 inline std::string ToString(T x, int zero_padding) {
   std::stringstream ss;
@@ -32,6 +39,12 @@ glm::vec3 current_position;
 std::vector<glm::vec3> current_points;
 bool using_loam = false;
 
+/**
+ * @brief Handle incoming point clouds for FTTE processing.
+ * @param rcv_cloud Incoming point cloud message.
+ * @details Converts the cloud, optionally transforms to world frame, and stores
+ *          points for voxel grid processing.
+ */
 void PointCloudCallback(nature::msg::PointCloud2Ptr rcv_cloud) {
   nature::msg::PointCloud point_cloud;
   bool converted = nature::messaging::convertPointCloud2ToPointCloud(*rcv_cloud, point_cloud);
@@ -61,6 +74,12 @@ void PointCloudCallback(nature::msg::PointCloud2Ptr rcv_cloud) {
   points_rcvd = true;
 }
 
+/**
+ * @brief Handle incoming odometry updates.
+ * @param rcv_odom Incoming odometry message.
+ * @details Updates current pose and position; applies LOAM frame adjustments
+ *          when configured.
+ */
 void OdometryCallback(nature::msg::OdometryPtr rcv_odom) {
   current_pose = *rcv_odom;
   if (using_loam) {
@@ -73,6 +92,14 @@ void OdometryCallback(nature::msg::OdometryPtr rcv_odom) {
                                current_pose.pose.pose.position.z);
 }
 
+/**
+ * @brief Entry point for the FTTE traversability node.
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ * @return Exit code.
+ * @details Configures the voxel grid, vehicle parameters, and visualization
+ *          settings, then publishes traversability grids.
+ */
 int main(int argc, char *argv[]) {
   auto n = nature::node::init_node(argc, argv, "nature_ftte_node");
 

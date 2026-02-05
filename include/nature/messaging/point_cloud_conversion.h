@@ -12,6 +12,15 @@
 namespace nature {
 namespace messaging {
 
+/**
+ * @brief Convert a dense PointCloud2 buffer into a PointCloud list of points.
+ * @param in_cloud Incoming PointCloud2 with packed binary data.
+ * @param out_cloud Output PointCloud populated with Point32 points and optional channels.
+ * @return True if conversion succeeded; false if required fields are missing or input is empty.
+ * @details Locates x/y/z (and optional segmentation) fields, then memcpy's each
+ *          point into a Point32 list. This is a temporary bridge while the stack
+ *          migrates off ROS message types and into ICD-style structs.
+ */
 inline bool convertPointCloud2ToPointCloud(const nature::msg::PointCloud2 &in_cloud,
                                            nature::msg::PointCloud &out_cloud) {
   out_cloud.header = in_cloud.header;
