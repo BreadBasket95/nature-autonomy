@@ -1,0 +1,43 @@
+# Placeholder pipeline configuration.
+# This file replaces prior launch definitions and will be wired to the new transport layer.
+
+nodes:
+  - name: perception
+    executable: nature_perception_node
+    publishes:
+      - nature/occupancy_grid
+      - nature/segmentation_grid
+    subscribes:
+      - nature/points
+      - nature/odometry
+
+  - name: global_planner
+    executable: nature_global_path_node
+    publishes:
+      - nature/global_path
+      - nature/waypoints
+    subscribes:
+      - nature/odometry
+      - nature/occupancy_grid
+      - nature/segmentation_grid
+      - nature/new_waypoints
+
+  - name: local_planner
+    executable: nature_local_planner_node
+    publishes:
+      - nature/local_path
+    subscribes:
+      - nature/odometry
+      - nature/occupancy_grid
+      - nature/segmentation_grid
+      - nature/global_path
+      - nature/waypoints
+
+  - name: controller
+    executable: nature_control_node
+    publishes:
+      - nature/cmd_vel
+    subscribes:
+      - nature/local_path
+      - nature/odometry
+      - nature/state
