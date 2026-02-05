@@ -178,7 +178,7 @@ int main(int argc, char *argv[])
       state_pub->publish(state);
     }
 
-    if (odom_rcvd && state.data != -1){ // data received and not in startup mode
+    if (odom_rcvd && state.data != -1 && !current_grid.data.empty()){ // data received and not in startup mode
       std::vector<float> pos;
       pos.push_back(odom.pose.pose.position.x);
       pos.push_back(odom.pose.pose.position.y);
@@ -188,6 +188,7 @@ int main(int argc, char *argv[])
       nature::msg::Path path_msg;
       path_msg.header.frame_id = "odom";
       path_msg.poses.clear();
+      path_msg.poses.reserve(path.size() + current_waypoints.poses.size());
       for (int32_t i = 0; i < path.size(); i++){
         nature::msg::PoseStamped pose;
         pose.pose.position.x = static_cast<float>(path[i][0]);

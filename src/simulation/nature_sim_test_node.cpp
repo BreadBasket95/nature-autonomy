@@ -39,6 +39,8 @@ int main(int argc, char **argv){
 	// determine if sim time will be used
 	bool use_sim_time;
 	n->get_parameter("use_sim_time", use_sim_time, false);
+	bool sim_sleep = false;
+	n->get_parameter("~sim_sleep", sim_sleep, false);
 	std::shared_ptr<nature::node::ClockPublisher> clock_pub;
 	if (use_sim_time){
     clock_pub = nature::node::ClockPublisher::make_shared("clock", 1, n);
@@ -136,6 +138,9 @@ int main(int argc, char **argv){
 		if (use_sim_time ){
       clock_pub->publish(elapsed_time);
 			elapsed_time += dt;
+			if (sim_sleep) {
+				rate.sleep();
+			}
 		}
 		else {
 			rate.sleep();

@@ -66,6 +66,8 @@ int main(int argc, char **argv){
     std::vector< std::vector<double> > path;
     nature::coordinate_system::CoordinateConverter converter;
     std::vector<nature::coordinate_system::UTM> utm_waypoints;
+    path.reserve(gps_waypoints_lat.size());
+    utm_waypoints.reserve(gps_waypoints_lat.size());
     for (int i=0;i<gps_waypoints_lat.size();i++){
         nature::coordinate_system::LLA gps_wp;
         gps_wp.latitude = gps_waypoints_lat[i];
@@ -109,6 +111,7 @@ int main(int argc, char **argv){
             nature::msg::Path path_msg;
             path_msg.header.frame_id = "odom";
             path_msg.poses.clear();
+            path_msg.poses.reserve(path.size());
             for (int32_t i = 0; i < path.size(); i++){
                 nature::msg::PoseStamped pose;
                 pose.pose.position.x = path[i][0] - utm_east;

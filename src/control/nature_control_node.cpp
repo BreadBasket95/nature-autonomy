@@ -248,6 +248,7 @@ int main(int argc, char *argv[]){
   while (nature::node::ok()){
     nature::msg::Twist dc;
     bool time_to_quit = false;
+    bool have_path = path_rcvd && !control_msg.poses.empty();
 
     // tell the controller the current vehicle state
     float vel = 0.0f;
@@ -266,7 +267,11 @@ int main(int argc, char *argv[]){
       // bring to a smooth stop and shut down
       controller.SetDesiredSpeed(0.0f);
       if (vel<0.5f)time_to_quit = true;
-      dc = controller.GetDcFromTraj(control_msg, goal);
+      if (have_path) {
+        dc = controller.GetDcFromTraj(control_msg, goal);
+      } else {
+        dc = nature::msg::Twist();
+      }
       dc.linear.x = 0.0f;
       dc.angular.z = 0.0f;
       dc.linear.y = -1.0f;
@@ -282,12 +287,20 @@ int main(int argc, char *argv[]){
       
       controller.SetDesiredSpeed(desired_velocity);
       //controller.SetDesiredSpeed(vehicle_speed);
-      dc = controller.GetDcFromTraj(control_msg, goal);
+      if (have_path) {
+        dc = controller.GetDcFromTraj(control_msg, goal);
+      } else {
+        dc = nature::msg::Twist();
+      }
     }
     else if (current_run_state==-1 || current_run_state==1){
       // bring to a smooth stop and wait / idle
       controller.SetDesiredSpeed(0.0f);
-      dc = controller.GetDcFromTraj(control_msg, goal);
+      if (have_path) {
+        dc = controller.GetDcFromTraj(control_msg, goal);
+      } else {
+        dc = nature::msg::Twist();
+      }
       if (current_run_state==-1)dc.linear.x = 0.0f;
     }
     else if (current_run_state==3){
@@ -334,7 +347,7 @@ int main(int argc, char *argv[]){
     // break the loop when an end state is reached
     if (time_to_quit)break;
     
-    if(display_markers){
+    if(display_markers && have_path){
       nature::msg::PointStamped next_waypoint_msg;
       next_waypoint_msg.point.x = goal.x;
       next_waypoint_msg.point.y = goal.y;

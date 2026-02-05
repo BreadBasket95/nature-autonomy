@@ -51,6 +51,7 @@ int main(int argc, char **argv)
             nature::msg::Path path_msg;
             path_msg.header.frame_id = "odom";
             path_msg.poses.clear();
+            path_msg.poses.reserve(path.size());
             for (int32_t i = 0; i < path.size(); i++){
                 nature::msg::PoseStamped pose;
                 pose.pose.position.x = static_cast<float>(path[i][0]);

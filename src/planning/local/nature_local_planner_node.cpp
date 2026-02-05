@@ -152,16 +152,20 @@ int main(int argc, char *argv[]){
     while (nature::node::ok()){
         double start_secs = n->get_now_seconds();
 
-        if (global_path.poses.size() > 0 && odom_rcvd && grid.data.size() > 0){
+        bool use_global_source = use_global_path || using_global_fallback;
+        bool have_path_source = use_global_source ? !global_path.poses.empty() : !waypoints.poses.empty();
+        if (have_path_source && odom_rcvd && grid.data.size() > 0){
 
             std::vector<nature::utils::vec2> path_points;
-            if (use_global_path || using_global_fallback){
+            if (use_global_source){
+                path_points.reserve(global_path.poses.size());
                 for (int i = 0; i < global_path.poses.size(); i++){
                     nature::utils::vec2 point(global_path.poses[i].pose.position.x, global_path.poses[i].pose.position.y);
                     path_points.push_back(point);
                 }
             }
             else{
+                path_points.reserve(waypoints.poses.size());
                 for (int i = 0; i < waypoints.poses.size(); i++){
                     nature::utils::vec2 point(waypoints.poses[i].pose.position.x, waypoints.poses[i].pose.position.y);
                     path_points.push_back(point);

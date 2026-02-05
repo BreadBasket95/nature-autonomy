@@ -1,0 +1,41 @@
+# VIO + depth completion configuration for nature autonomy (non-ROS).
+
+# Camera intrinsics
+camera.fx: 320.0
+camera.fy: 320.0
+camera.cx: 320.0
+camera.cy: 240.0
+camera.width: 640
+camera.height: 480
+
+# Synthetic sensor toggles and rates (for placeholder operation)
+synthetic_camera: true
+synthetic_imu: true
+camera.rate_hz: 30.0
+imu.rate_hz: 200.0
+
+# OpenVINS configuration path (library-level usage)
+openvins.config: config/openvins.yaml
+
+# TensorRT model path
+tensorrt.onnx_path: models/iudc.onnx
+
+# Body -> camera transform (row-major 4x4)
+t_bc: [1.0, 0.0, 0.0, 0.0,
+       0.0, 1.0, 0.0, 0.0,
+       0.0, 0.0, 1.0, 0.0,
+       0.0, 0.0, 0.0, 1.0]
+
+# Occupancy grid settings
+grid.resolution: 0.5
+grid.width: 200.0
+grid.height: 200.0
+grid.origin_x: -100.0
+grid.origin_y: -100.0
+
+# Height band filter for quadcopter collision volume
+height_band.min_z: -1.0
+height_band.max_z: 3.0
+
+# Uncertainty gating
+uncertainty.max: 0.5

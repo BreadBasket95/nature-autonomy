@@ -154,6 +154,36 @@ struct Odometry {
   TwistWithCovariance twist;
 };
 
+struct Imu {
+  Header header;
+  Quaternion orientation;
+  std::array<double, 9> orientation_covariance = {};
+  Vector3 angular_velocity;
+  std::array<double, 9> angular_velocity_covariance = {};
+  Vector3 linear_acceleration;
+  std::array<double, 9> linear_acceleration_covariance = {};
+  /**
+   * @brief Default-construct an IMU message with zeroed fields.
+   * @details Matches the legacy IMU layout to ease downstream extraction.
+   */
+  Imu() = default;
+};
+
+struct Image {
+  Header header;
+  uint32_t height = 0;
+  uint32_t width = 0;
+  std::string encoding;
+  bool is_bigendian = false;
+  uint32_t step = 0;
+  std::vector<uint8_t> data;
+  /**
+   * @brief Default-construct an empty image message.
+   * @details Provides a placeholder for camera integrations without middleware.
+   */
+  Image() = default;
+};
+
 struct OccupancyGrid {
   struct Info {
     Pose origin;

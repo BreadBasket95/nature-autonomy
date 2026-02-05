@@ -48,27 +48,32 @@ bool using_loam = false;
 void PointCloudCallback(nature::msg::PointCloud2Ptr rcv_cloud) {
   nature::msg::PointCloud point_cloud;
   bool converted = nature::messaging::convertPointCloud2ToPointCloud(*rcv_cloud, point_cloud);
-  if (odom_rcvd && converted) {
+  if (!(odom_rcvd && converted)) {
     current_points.clear();
-    if (use_registered_points) {
-      for (int p = 0; p < static_cast<int>(point_cloud.points.size()); p++) {
-        if (using_loam) {
-          current_points.push_back(glm::vec3(point_cloud.points[p].z, point_cloud.points[p].x, point_cloud.points[p].y));
-        } else {
-          current_points.push_back(glm::vec3(point_cloud.points[p].x, point_cloud.points[p].y, point_cloud.points[p].z));
-        }
+    points_rcvd = false;
+    return;
+  }
+
+  current_points.clear();
+  current_points.reserve(point_cloud.points.size());
+  if (use_registered_points) {
+    for (int p = 0; p < static_cast<int>(point_cloud.points.size()); p++) {
+      if (using_loam) {
+        current_points.push_back(glm::vec3(point_cloud.points[p].z, point_cloud.points[p].x, point_cloud.points[p].y));
+      } else {
+        current_points.push_back(glm::vec3(point_cloud.points[p].x, point_cloud.points[p].y, point_cloud.points[p].z));
       }
-    } else {
-      nature::msg_tf::Quaternion q(current_pose.pose.pose.orientation.x, current_pose.pose.pose.orientation.y,
-                                   current_pose.pose.pose.orientation.z, current_pose.pose.pose.orientation.w);
-      nature::msg_tf::Matrix3x3 R(q);
-      nature::msg_tf::Vector3 origin(current_pose.pose.pose.position.x, current_pose.pose.pose.position.y,
-                                     current_pose.pose.pose.position.z);
-      for (int p = 0; p < static_cast<int>(point_cloud.points.size()); p++) {
-        nature::msg_tf::Vector3 v(point_cloud.points[p].x, point_cloud.points[p].y, point_cloud.points[p].z);
-        nature::msg_tf::Vector3 vp = (R * v) + origin;
-        current_points.push_back(glm::vec3(vp.x, vp.y, vp.z));
-      }
+    }
+  } else {
+    nature::msg_tf::Quaternion q(current_pose.pose.pose.orientation.x, current_pose.pose.pose.orientation.y,
+                                 current_pose.pose.pose.orientation.z, current_pose.pose.pose.orientation.w);
+    nature::msg_tf::Matrix3x3 R(q);
+    nature::msg_tf::Vector3 origin(current_pose.pose.pose.position.x, current_pose.pose.pose.position.y,
+                                   current_pose.pose.pose.position.z);
+    for (int p = 0; p < static_cast<int>(point_cloud.points.size()); p++) {
+      nature::msg_tf::Vector3 v(point_cloud.points[p].x, point_cloud.points[p].y, point_cloud.points[p].z);
+      nature::msg_tf::Vector3 vp = (R * v) + origin;
+      current_points.push_back(glm::vec3(vp.x, vp.y, vp.z));
     }
   }
   points_rcvd = true;
@@ -176,6 +181,10 @@ int main(int argc, char *argv[]) {
   double max_time = std::numeric_limits<double>::max();
   n->get_parameter("~max_time", max_time, max_time);
 
+  float idle_rate_hz = 50.0f;
+  n->get_parameter("~idle_rate", idle_rate_hz, idle_rate_hz);
+  nature::node::Rate idle_rate(idle_rate_hz);
+
   // Create a vehicle for calculating traversability
   traverselib::Vehicle vehicle;
   vehicle.SetParams(vehicle_mass, vehicle_bumper_height, vehicle_tire_radius, vehicle_vci1, vehicle_max_slope,
@@ -202,7 +211,9 @@ int main(int argc, char *argv[]) {
   std::ofstream fout("pose_log.txt");
 
   while (nature::node::ok() && elapsed_time < max_time) {
+    bool processed = false;
     if (odom_rcvd && points_rcvd) {
+      processed = true;
       if (frame_count == 0) {
         t0 = n->get_now_seconds();
       }
@@ -267,6 +278,9 @@ int main(int argc, char *argv[]) {
       elapsed_time = n->get_now_seconds() - t0;
     }
     n->spin_some();
+    if (!processed) {
+      idle_rate.sleep();
+    }
   }
   fout.close();
   return 0;

@@ -117,7 +117,8 @@ int main(int argc, char *argv[]){
   nature::node::Rate loop_rate(rate);
   while (nature::node::ok()){
     double start_secs = n->get_now_seconds();
-    if (global_path.poses.size() > 0 && odom_rcvd && grid.data.size() > 0){
+    bool have_path_source = use_global_path ? !global_path.poses.empty() : !waypoints.poses.empty();
+    if (have_path_source && odom_rcvd && grid.data.size() > 0){
 
       float gx, gy;
       if (use_global_path){
