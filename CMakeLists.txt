@@ -20,6 +20,7 @@ if (OpenMP_CXX_FOUND)
 endif()
 
 option(NATURE_ENABLE_VIO_DEPTH "Build VIO + depth completion pipeline" OFF)
+option(NATURE_ENABLE_ZMQ "Enable ZMQ transport" OFF)
 
 add_executable(nature_path_manager_node
   src/planning/global/path_manager_node.cpp
@@ -209,10 +210,13 @@ if (NATURE_ENABLE_VIO_DEPTH)
 
   add_library(nature_mapping
     src/perception/mapping/occupancy_mapper.cpp
+    src/perception/mapping/occupancy_mapper_gpu.cu
   )
   target_include_directories(nature_mapping PUBLIC include ${EIGEN_INCLUDE_DIRS} ${CUDA_INCLUDE_DIRS})
   target_compile_definitions(nature_mapping PRIVATE NATURE_HAS_CUDA)
   target_link_libraries(nature_mapping ${CUDA_LIBRARIES})
+  set_target_properties(nature_mapping PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+  set_target_properties(nature_mapping PROPERTIES CUDA_STANDARD 14 CUDA_STANDARD_REQUIRED ON)
   if (TARGET Eigen3::Eigen)
     target_link_libraries(nature_mapping Eigen3::Eigen)
   endif()
@@ -244,5 +248,26 @@ if (NATURE_ENABLE_VIO_DEPTH)
   endif()
   if (OpenMP_CXX_FOUND)
     target_link_libraries(nature_vio_depth_node ${OPENMP_LIB})
+  endif()
+
+  if (NATURE_ENABLE_ZMQ)
+    find_path(ZMQ_INCLUDE_DIR zmq.h
+      PATHS /usr/include /usr/local/include)
+    find_library(ZMQ_LIB zmq
+      PATHS /usr/lib /usr/local/lib /usr/lib/aarch64-linux-gnu /usr/lib/x86_64-linux-gnu)
+    if (NOT ZMQ_INCLUDE_DIR OR NOT ZMQ_LIB)
+      message(FATAL_ERROR "ZMQ not found. Set ZMQ_INCLUDE_DIR/ZMQ_LIB.")
+    endif()
+
+    add_library(nature_transport
+      src/transport/zmq_transport.cpp
+    )
+    target_include_directories(nature_transport PUBLIC include ${ZMQ_INCLUDE_DIR})
+    target_compile_definitions(nature_transport PRIVATE NATURE_HAS_ZMQ)
+    target_link_libraries(nature_transport ${ZMQ_LIB})
+
+    target_include_directories(nature_vio_depth_node PRIVATE ${ZMQ_INCLUDE_DIR})
+    target_compile_definitions(nature_vio_depth_node PRIVATE NATURE_HAS_ZMQ)
+    target_link_libraries(nature_vio_depth_node nature_transport ${ZMQ_LIB})
   endif()
 endif()

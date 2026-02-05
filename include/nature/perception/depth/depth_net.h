@@ -47,6 +47,17 @@ public:
   /**
    * @brief Load and build a TensorRT engine from an ONNX file.
    * @param onnx_path Path to the ONNX model.
+   * @param engine_path Optional path to a cached engine file.
+   * @param fp16 Enable FP16 inference if supported.
+   * @return True if the engine was built successfully.
+   */
+  bool load_engine(const std::string &onnx_path,
+                   const std::string &engine_path,
+                   bool fp16 = true);
+
+  /**
+   * @brief Load and build a TensorRT engine from an ONNX file.
+   * @param onnx_path Path to the ONNX model.
    * @param fp16 Enable FP16 inference if supported.
    * @return True if the engine was built successfully.
    */
@@ -62,8 +73,22 @@ public:
    */
   bool infer(float *rgb_gpu,
              float *sparse_depth_gpu,
+             int width,
+             int height,
              DepthResult &out,
              cudaStream_t stream);
+
+  /**
+   * @brief Query whether the network expects RGB input in NHWC layout.
+   * @return True if NHWC is expected.
+   */
+  bool expects_rgb_nhwc() const;
+
+  /**
+   * @brief Query whether the network expects sparse depth input in NHWC layout.
+   * @return True if NHWC is expected.
+   */
+  bool expects_sparse_nhwc() const;
 
 private:
   struct Impl;

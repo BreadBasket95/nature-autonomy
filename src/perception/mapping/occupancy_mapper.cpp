@@ -23,7 +23,23 @@ OccupancyMapper::OccupancyMapper(float grid_res, float width, float height,
       origin_y_(origin_y) {
   cells_x_ = static_cast<int>(std::ceil(width_ / resolution_));
   cells_y_ = static_cast<int>(std::ceil(height_ / resolution_));
-  data_.assign(static_cast<size_t>(cells_x_ * cells_y_), 0);
+  data_.assign(static_cast<size_t>(cells_x_ * cells_y_), unknown_value_);
+#ifdef NATURE_HAS_CUDA
+  allocate_gpu_buffers();
+#endif
+}
+
+OccupancyMapper::~OccupancyMapper() {
+#ifdef NATURE_HAS_CUDA
+  if (grid_gpu_) {
+    cudaFree(grid_gpu_);
+    grid_gpu_ = nullptr;
+  }
+  if (stream_) {
+    cudaStreamDestroy(stream_);
+    stream_ = nullptr;
+  }
+#endif
 }
 
 void OccupancyMapper::set_height_band(float min_z, float max_z) {
@@ -37,6 +53,15 @@ void OccupancyMapper::set_uncertainty_threshold(float max_uncertainty) {
   max_uncertainty_ = max_uncertainty;
 }
 
+void OccupancyMapper::set_use_gpu(bool enable) {
+#ifdef NATURE_HAS_CUDA
+  std::lock_guard<std::mutex> lock(mutex_);
+  gpu_enabled_ = enable;
+#else
+  (void)enable;
+#endif
+}
+
 void OccupancyMapper::update_from_depth(const depth::DepthResult &depth,
                                         const Eigen::Matrix4f &T_wb,
                                         const Eigen::Matrix4f &T_bc,
@@ -45,6 +70,20 @@ void OccupancyMapper::update_from_depth(const depth::DepthResult &depth,
     return;
   }
 
+#ifdef NATURE_HAS_CUDA
+  if (gpu_enabled_ && gpu_ready_) {
+    update_from_depth_gpu(depth, T_wb, T_bc, K);
+    return;
+  }
+#endif
+
+  update_from_depth_cpu(depth, T_wb, T_bc, K);
+}
+
+void OccupancyMapper::update_from_depth_cpu(const depth::DepthResult &depth,
+                                            const Eigen::Matrix4f &T_wb,
+                                            const Eigen::Matrix4f &T_bc,
+                                            const depth::CameraIntrinsics &K) {
   const int width = depth.width > 0 ? depth.width : K.width;
   const int height = depth.height > 0 ? depth.height : K.height;
   if (width <= 0 || height <= 0) {
@@ -103,6 +142,8 @@ void OccupancyMapper::update_from_depth(const depth::DepthResult &depth,
       if (ix < 0 || iy < 0 || ix >= cells_x_ || iy >= cells_y_) {
         continue;
       }
+
+      // TODO: Add free-space raycasting for CPU fallback.
       data_[index_from_xy(ix, iy)] = kOccupiedValue;
     }
   }
@@ -110,6 +151,11 @@ void OccupancyMapper::update_from_depth(const depth::DepthResult &depth,
 
 nature::msg::OccupancyGrid OccupancyMapper::to_msg(bool row_major) const {
   std::lock_guard<std::mutex> lock(mutex_);
+#ifdef NATURE_HAS_CUDA
+  if (gpu_enabled_ && gpu_ready_) {
+    download_grid_locked();
+  }
+#endif
   nature::msg::OccupancyGrid grid;
   grid.header.frame_id = "map";
   grid.info.resolution = resolution_;
@@ -135,7 +181,8 @@ nature::msg::OccupancyGrid OccupancyMapper::to_msg(bool row_major) const {
 }
 
 void OccupancyMapper::clear_grid_locked() {
-  std::fill(data_.begin(), data_.end(), 0);
+  // TODO: Allow configuring unknown/free values to match downstream planners.
+  std::fill(data_.begin(), data_.end(), unknown_value_);
 }
 
 int OccupancyMapper::index_from_xy(int x, int y) const {

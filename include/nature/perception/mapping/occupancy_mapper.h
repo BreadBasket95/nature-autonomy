@@ -13,6 +13,13 @@
 #include "nature/perception/depth/depth_net.h"
 #include "nature/perception/depth/feature_projector.h"
 
+// Provide a fallback stream type when CUDA headers are unavailable.
+#ifdef NATURE_HAS_CUDA
+#include <cuda_runtime.h>
+#else
+typedef void *cudaStream_t;
+#endif
+
 namespace nature {
 namespace perception {
 namespace mapping {
@@ -35,6 +42,11 @@ public:
                   float origin_x, float origin_y);
 
   /**
+   * @brief Destroy the mapper and release GPU resources.
+   */
+  ~OccupancyMapper();
+
+  /**
    * @brief Set the accepted world-frame height band.
    * @param min_z Minimum z in meters.
    * @param max_z Maximum z in meters.
@@ -46,6 +58,12 @@ public:
    * @param max_uncertainty Maximum acceptable uncertainty value.
    */
   void set_uncertainty_threshold(float max_uncertainty);
+
+  /**
+   * @brief Enable or disable GPU-side mapping.
+   * @param enable True to use CUDA kernels when available.
+   */
+  void set_use_gpu(bool enable);
 
   /**
    * @brief Update the occupancy grid from dense depth.
@@ -69,6 +87,18 @@ public:
 
 private:
   void clear_grid_locked();
+  void update_from_depth_cpu(const depth::DepthResult &depth,
+                             const Eigen::Matrix4f &T_wb,
+                             const Eigen::Matrix4f &T_bc,
+                             const depth::CameraIntrinsics &K);
+#ifdef NATURE_HAS_CUDA
+  void update_from_depth_gpu(const depth::DepthResult &depth,
+                             const Eigen::Matrix4f &T_wb,
+                             const Eigen::Matrix4f &T_bc,
+                             const depth::CameraIntrinsics &K);
+  void allocate_gpu_buffers();
+  void download_grid_locked() const;
+#endif
   int index_from_xy(int x, int y) const;
 
   float resolution_;
@@ -81,8 +111,15 @@ private:
   float min_z_ = -1.0f;
   float max_z_ = 2.0f;
   float max_uncertainty_ = 0.5f;
-  std::vector<int8_t> data_;
+  int8_t unknown_value_ = -1;
+  mutable std::vector<int8_t> data_;
   mutable std::mutex mutex_;
+#ifdef NATURE_HAS_CUDA
+  mutable int *grid_gpu_ = nullptr;
+  cudaStream_t stream_ = nullptr;
+  bool gpu_enabled_ = true;
+  bool gpu_ready_ = false;
+#endif
 };
 
 } // namespace mapping

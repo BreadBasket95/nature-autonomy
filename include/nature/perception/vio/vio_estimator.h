@@ -31,7 +31,7 @@ struct VIOUpdate {
 /**
  * @brief Library-level wrapper for OpenVINS VIO processing.
  * @details This class ingests IMU + monocular images and produces pose and
- *          sparse landmarks without any ROS dependencies.
+ *          sparse landmarks without middleware dependencies.
  */
 class VIOEstimator {
 public:
@@ -59,6 +59,26 @@ public:
                         const cv::Mat &image,
                         const Eigen::Vector3f &accel,
                         const Eigen::Vector3f &gyro);
+
+  /**
+   * @brief Feed a single IMU measurement into the estimator.
+   * @param timestamp Measurement time in seconds.
+   * @param accel Linear acceleration in the body frame (m/s^2).
+   * @param gyro Angular velocity in the body frame (rad/s).
+   * @details Use this for high-rate IMU ingestion with external sync buffers.
+   */
+  void feed_imu(double timestamp,
+                const Eigen::Vector3f &accel,
+                const Eigen::Vector3f &gyro);
+
+  /**
+   * @brief Feed a monocular image into the estimator.
+   * @param timestamp Image capture time in seconds.
+   * @param image Monocular image.
+   * @details Use this for time-aligned image ingestion after IMU buffering.
+   */
+  void feed_image(double timestamp,
+                  const cv::Mat &image);
 
   /**
    * @brief Retrieve the most recent VIO update.

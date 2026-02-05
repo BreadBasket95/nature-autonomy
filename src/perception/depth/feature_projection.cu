@@ -122,9 +122,7 @@ void generate_sparse_depth_map(const vio::VIOUpdate &vio,
   const int pixel_count = K.width * K.height;
   const float kDepthSentinel = 1.0e6f;
 
-  const Eigen::Matrix4f T_bw = vio.T_wb.inverse();
-  const Eigen::Matrix4f T_cb = T_bc.inverse();
-  const Eigen::Matrix4f T_cw = T_cb * T_bw;
+  const Eigen::Matrix4f T_cw = T_bc * vio.T_wb;
 
 #ifdef NATURE_HAS_CUDA
   const int block = 256;

@@ -1,4 +1,4 @@
-# VIO + depth completion configuration for nature autonomy (non-ROS).
+# VIO + depth completion configuration for nature autonomy (middleware-free).
 
 # Camera intrinsics
 camera.fx: 320.0
@@ -7,6 +7,11 @@ camera.cx: 320.0
 camera.cy: 240.0
 camera.width: 640
 camera.height: 480
+
+# RGB normalization (NCHW float input)
+rgb.scale: 0.0039215686  # 1/255
+rgb.mean: [0.0, 0.0, 0.0]
+rgb.std: [1.0, 1.0, 1.0]
 
 # Synthetic sensor toggles and rates (for placeholder operation)
 synthetic_camera: true
@@ -19,6 +24,14 @@ openvins.config: config/openvins.yaml
 
 # TensorRT model path
 tensorrt.onnx_path: models/iudc.onnx
+tensorrt.engine_path: models/iudc.engine
+tensorrt.fp16: true
+
+# Sensor sync settings
+sync.buffer_sec: 2.0
+sync.time_slop: 0.02
+sync.max_imu_gap: 0.05
+sync.interpolate: true
 
 # Body -> camera transform (row-major 4x4)
 t_bc: [1.0, 0.0, 0.0, 0.0,
@@ -39,3 +52,8 @@ height_band.max_z: 3.0
 
 # Uncertainty gating
 uncertainty.max: 0.5
+
+# ZMQ transport settings
+transport.zmq_enable: false
+transport.zmq_pub_endpoint: tcp://*:5556
+transport.zmq_sub_endpoint: tcp://localhost:5557
