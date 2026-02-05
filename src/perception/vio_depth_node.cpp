@@ -578,6 +578,7 @@ int main(int argc, char *argv[]) {
 
   nature::perception::vio::VIOEstimator vio(openvins_config);
   nature::perception::depth::DepthNet depth_net;
+  nature::perception::depth::FeatureProjector feature_projector;
   const bool depth_ready = depth_net.load_engine(onnx_path, engine_path, tensorrt_fp16);
   if (!depth_ready) {
     std::cerr << "DepthNet failed to load; running in placeholder mode." << std::endl;
@@ -782,7 +783,7 @@ int main(int argc, char *argv[]) {
       }
 #endif
 
-      nature::perception::depth::generate_sparse_depth_map(
+      feature_projector.generate_sparse_depth_map(
           vio_update, T_bc, K, sparse_gpu, stream);
 
       nature::perception::depth::DepthResult depth_result;

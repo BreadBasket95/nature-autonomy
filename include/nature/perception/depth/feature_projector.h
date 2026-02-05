@@ -6,6 +6,8 @@
 
 #include <Eigen/Core>
 
+#include <memory>
+
 #include "nature/perception/vio/vio_estimator.h"
 
 // Provide a fallback stream type when CUDA headers are unavailable.
@@ -32,7 +34,35 @@ struct CameraIntrinsics {
 };
 
 /**
- * @brief Generate a sparse depth map from VIO landmarks.
+ * @brief Manages persistent GPU buffers for landmark projection.
+ * @details Avoids per-frame cudaMalloc/Free overhead by reusing buffers.
+ */
+class FeatureProjector {
+public:
+  FeatureProjector();
+  ~FeatureProjector();
+
+  /**
+   * @brief Generate a sparse depth map from VIO landmarks.
+   * @param vio VIO update containing world-frame landmarks and pose.
+   * @param T_bc Body-to-camera transform.
+   * @param K Camera intrinsics.
+   * @param gpu_output_buffer Output depth buffer on the GPU (width*height floats).
+   * @param stream CUDA stream to run kernels on (nullable for synchronous).
+   */
+  void generate_sparse_depth_map(const vio::VIOUpdate &vio,
+                                 const Eigen::Matrix4f &T_bc,
+                                 const CameraIntrinsics &K,
+                                 float *gpu_output_buffer,
+                                 cudaStream_t stream);
+
+private:
+  struct Impl;
+  std::unique_ptr<Impl> impl_;
+};
+
+/**
+ * @brief Generate a sparse depth map from VIO landmarks (stateless version).
  * @param vio VIO update containing world-frame landmarks and pose.
  * @param T_bc Body-to-camera transform.
  * @param K Camera intrinsics.
@@ -40,6 +70,8 @@ struct CameraIntrinsics {
  * @param stream CUDA stream to run kernels on (nullable for synchronous).
  * @details Projects landmarks into the camera frame, filters invalid points,
  *          and writes the nearest depth per pixel.
+ * @note This function allocates GPU memory per call. For better performance,
+ *       use the FeatureProjector class which maintains persistent buffers.
  */
 void generate_sparse_depth_map(const vio::VIOUpdate &vio,
                                const Eigen::Matrix4f &T_bc,

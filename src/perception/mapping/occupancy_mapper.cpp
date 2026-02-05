@@ -112,10 +112,46 @@ void OccupancyMapper::update_from_depth_cpu(const depth::DepthResult &depth,
   const Eigen::Matrix4f T_cb = T_bc.inverse();
   const Eigen::Matrix4f T_wc = T_bw * T_cb;
 
+  // Compute camera origin in grid coordinates for raycasting
+  const Eigen::Vector4f cam_origin_w = T_wc * Eigen::Vector4f(0.0f, 0.0f, 0.0f, 1.0f);
+  const int cam_ix = static_cast<int>(std::floor((cam_origin_w.x() - origin_x_) / resolution_));
+  const int cam_iy = static_cast<int>(std::floor((cam_origin_w.y() - origin_y_) / resolution_));
+  const bool cam_in_grid = (cam_ix >= 0 && cam_iy >= 0 && cam_ix < cells_x_ && cam_iy < cells_y_);
+
   std::lock_guard<std::mutex> lock(mutex_);
   clear_grid_locked();
 
+  constexpr int8_t kFreeValue = 0;
   constexpr int8_t kOccupiedValue = 100;
+
+  // Bresenham line drawing helper (marks free space along the ray)
+  auto bresenham_mark_free = [&](int x0, int y0, int x1, int y1) {
+    const int dx = std::abs(x1 - x0);
+    const int dy = std::abs(y1 - y0);
+    const int sx = (x0 < x1) ? 1 : -1;
+    const int sy = (y0 < y1) ? 1 : -1;
+    int err = dx - dy;
+
+    while (x0 != x1 || y0 != y1) {
+      if (x0 >= 0 && y0 >= 0 && x0 < cells_x_ && y0 < cells_y_) {
+        const int grid_idx = index_from_xy(x0, y0);
+        // Only mark as free if not already occupied
+        if (data_[grid_idx] < kOccupiedValue) {
+          data_[grid_idx] = kFreeValue;
+        }
+      }
+      const int e2 = 2 * err;
+      if (e2 > -dy) {
+        err -= dy;
+        x0 += sx;
+      }
+      if (e2 < dx) {
+        err += dx;
+        y0 += sy;
+      }
+    }
+  };
+
   for (int v = 0; v < height; ++v) {
     for (int u = 0; u < width; ++u) {
       const size_t idx = static_cast<size_t>(v * width + u);
@@ -143,7 +179,12 @@ void OccupancyMapper::update_from_depth_cpu(const depth::DepthResult &depth,
         continue;
       }
 
-      // TODO: Add free-space raycasting for CPU fallback.
+      // Mark free space along the ray from camera to hit point
+      if (cam_in_grid) {
+        bresenham_mark_free(cam_ix, cam_iy, ix, iy);
+      }
+
+      // Mark the hit cell as occupied (after free-space raycasting)
       data_[index_from_xy(ix, iy)] = kOccupiedValue;
     }
   }
