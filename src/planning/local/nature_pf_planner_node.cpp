@@ -24,29 +24,62 @@ bool odom_rcvd = false;
 bool new_grid_rcvd = false;
 bool new_seg_grid_rcvd = false;
 
+/**
+ * @brief Handle incoming odometry updates.
+ * @param rcv_odom Incoming odometry message.
+ * @details Updates the vehicle state used for potential field planning.
+ */
 void OdometryCallback(nature::msg::OdometryPtr rcv_odom){
   odom = *rcv_odom;
   odom_rcvd = true;
 }
 
+/**
+ * @brief Handle incoming occupancy grid updates.
+ * @param rcv_grid Incoming occupancy grid.
+ * @details Updates the obstacle grid used by the planner.
+ */
 void GridCallback(nature::msg::OccupancyGridPtr rcv_grid){
   grid = *rcv_grid;
   new_grid_rcvd = true;
 }
 
+/**
+ * @brief Handle incoming segmentation grid updates.
+ * @param rcv_grid Incoming segmentation grid.
+ * @details Updates semantic grid used for terrain cost adjustments.
+ */
 void SegmentationGridCallback(nature::msg::OccupancyGridPtr rcv_grid){
     segmentation_grid = *rcv_grid;
     new_seg_grid_rcvd = true;
 }
 
+/**
+ * @brief Handle incoming global path updates.
+ * @param rcv_path Incoming global path.
+ * @details Stores the path used when configured to follow global endpoints.
+ */
 void PathCallback(nature::msg::PathPtr rcv_path){
   global_path = *rcv_path;
 }
 
+/**
+ * @brief Handle incoming waypoint updates.
+ * @param wp_path Incoming waypoint path.
+ * @details Stores the waypoint list used to set local goals.
+ */
 void WaypointCallback(nature::msg::PathPtr wp_path){
   waypoints = *wp_path;
 }
 
+/**
+ * @brief Entry point for the potential field local planner node.
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ * @return Exit code.
+ * @details Configures planner gains, subscribes to grids and odometry,
+ *          and publishes local paths computed by potential fields.
+ */
 int main(int argc, char *argv[]){
 
   auto n = nature::node::init_node(argc, argv, "nature_pf_planner_node");
@@ -84,7 +117,8 @@ int main(int argc, char *argv[]){
   nature::node::Rate loop_rate(rate);
   while (nature::node::ok()){
     double start_secs = n->get_now_seconds();
-    if (global_path.poses.size() > 0 && odom_rcvd && grid.data.size() > 0){
+    bool have_path_source = use_global_path ? !global_path.poses.empty() : !waypoints.poses.empty();
+    if (have_path_source && odom_rcvd && grid.data.size() > 0){
 
       float gx, gy;
       if (use_global_path){

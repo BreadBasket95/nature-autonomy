@@ -18,15 +18,17 @@ class Polynomial {
 public:
 
 	/**
-	 * Create an uninitialized polynomial.
+	 * @brief Construct an empty polynomial.
+	 * @details Leaves coefficient list empty; used as a placeholder before
+	 *          initialization by the local planner.
 	 */ 
 	Polynomial() {}
 
 	/**
-	 * Create an initialized polynomial.
-	 * The rank will be the size of the coefficient list less one.
-	 * p(x) = c[0]x^n + c[1]x^n-1 + ... c[n-2]x + c[n-1]
-	 * \param coeffs The coefficients of the polynomial.
+	 * @brief Construct a polynomial from coefficients.
+	 * @param coeffs Coefficients ordered highest degree to constant term.
+	 * @details Reverses the input for internal low-to-high degree storage.
+	 *          Represents p(x) = c0*x^n + ... + cn.
 	 */
 	Polynomial(std::vector<float> coeffs) {
 		coeffs_ = coeffs;
@@ -34,7 +36,10 @@ public:
 	}
 
 	/**
-	 * Get a polynomial representing the derivative of the current polynomial. 
+	 * @brief Compute the derivative polynomial.
+	 * @return Polynomial representing the first derivative.
+	 * @details Generates new coefficients by multiplying by the power index.
+	 *          Used by candidate path curvature computations.
 	 */
 	Polynomial Derivative() {
 		std::vector<float> coeffs;
@@ -47,8 +52,10 @@ public:
 	}
 
 	/**
-	 * Get the value of the polynomial at x
-	 * \param x Evaluate the polynomial at p(x)
+	 * @brief Evaluate the polynomial at x.
+	 * @param x Input value.
+	 * @return Polynomial value at x.
+	 * @details Uses power expansion with stored coefficients.
 	 */ 
 	float At(float x) {
 		float y = 0.0f;

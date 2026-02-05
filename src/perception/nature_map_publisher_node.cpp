@@ -12,6 +12,13 @@ std::vector<double> obs_x_list, obs_y_list, obs_r_list;
 float grid_res, grid_llx, grid_lly;
 float grid_width, grid_height;
 
+/**
+ * @brief Build an occupancy grid with circular obstacle footprints.
+ * @param row_major True to output row-major ordering.
+ * @return OccupancyGrid message filled with obstacle costs.
+ * @details Uses configured obstacle positions/radii to set costs to 100
+ *          in affected cells; used by the map publisher node.
+ */
 nature::msg::OccupancyGrid CreateGrid(bool row_major){
 	nature::msg::OccupancyGrid grid;
   grid.header.frame_id = "map";
@@ -64,6 +71,14 @@ nature::msg::OccupancyGrid CreateGrid(bool row_major){
   return grid;
 }
 
+/**
+ * @brief Entry point for the static map publisher node.
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ * @return Exit code.
+ * @details Loads obstacle parameters, builds a static occupancy grid, and
+ *          publishes it at a fixed rate for planners.
+ */
 int main(int argc, char *argv[]) {
 
 	auto n = nature::node::init_node(argc, argv, "nature_map_publisher_node");

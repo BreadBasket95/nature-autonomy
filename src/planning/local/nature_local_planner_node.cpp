@@ -25,29 +25,62 @@ bool odom_rcvd = false;
 bool new_grid_rcvd = false;
 bool new_seg_grid_rcvd = false;
 
+/**
+ * @brief Handle incoming odometry updates.
+ * @param rcv_odom Incoming odometry message.
+ * @details Updates the vehicle state used for local planning.
+ */
 void OdometryCallback(nature::msg::OdometryPtr rcv_odom){
     odom = *rcv_odom;
     odom_rcvd = true;
 }
 
+/**
+ * @brief Handle incoming occupancy grid updates.
+ * @param rcv_grid Incoming occupancy grid.
+ * @details Updates the cost map used for collision checking.
+ */
 void GridCallback(nature::msg::OccupancyGridPtr rcv_grid){
     grid = *rcv_grid;
     new_grid_rcvd = true;
 }
 
+/**
+ * @brief Handle incoming segmentation grid updates.
+ * @param rcv_grid Incoming segmentation grid.
+ * @details Updates semantic cost map used by the local planner.
+ */
 void SegmentationGridCallback(nature::msg::OccupancyGridPtr rcv_grid){
     segmentation_grid = *rcv_grid;
     new_seg_grid_rcvd = true;
 }
 
+/**
+ * @brief Handle incoming global path updates.
+ * @param rcv_path Incoming global path message.
+ * @details Stores the global path used when configured to follow it.
+ */
 void PathCallback(nature::msg::PathPtr rcv_path){
     global_path = *rcv_path;
 }
 
+/**
+ * @brief Handle incoming waypoint updates.
+ * @param wp_path Incoming waypoint path.
+ * @details Stores waypoints used as a local centerline when configured.
+ */
 void WaypointCallback(nature::msg::PathPtr wp_path){
     waypoints = *wp_path;
 }
 
+/**
+ * @brief Entry point for the local planner node.
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ * @return Exit code.
+ * @details Builds candidate paths, scores them against occupancy and semantic
+ *          grids, publishes the best local path, and optionally visualizes.
+ */
 int main(int argc, char *argv[]){
 
     auto n = nature::node::init_node(argc, argv, "nature_planner_node");
@@ -119,16 +152,20 @@ int main(int argc, char *argv[]){
     while (nature::node::ok()){
         double start_secs = n->get_now_seconds();
 
-        if (global_path.poses.size() > 0 && odom_rcvd && grid.data.size() > 0){
+        bool use_global_source = use_global_path || using_global_fallback;
+        bool have_path_source = use_global_source ? !global_path.poses.empty() : !waypoints.poses.empty();
+        if (have_path_source && odom_rcvd && grid.data.size() > 0){
 
             std::vector<nature::utils::vec2> path_points;
-            if (use_global_path || using_global_fallback){
+            if (use_global_source){
+                path_points.reserve(global_path.poses.size());
                 for (int i = 0; i < global_path.poses.size(); i++){
                     nature::utils::vec2 point(global_path.poses[i].pose.position.x, global_path.poses[i].pose.position.y);
                     path_points.push_back(point);
                 }
             }
             else{
+                path_points.reserve(waypoints.poses.size());
                 for (int i = 0; i < waypoints.poses.size(); i++){
                     nature::utils::vec2 point(waypoints.poses[i].pose.position.x, waypoints.poses[i].pose.position.y);
                     path_points.push_back(point);

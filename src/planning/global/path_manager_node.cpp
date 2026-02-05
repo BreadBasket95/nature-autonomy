@@ -18,6 +18,14 @@
 
 nature::msg::Path new_path;
 
+/**
+ * @brief Entry point for the path manager node.
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ * @return Exit code.
+ * @details Publishes a new waypoint path after a configurable delay to
+ *          demonstrate dynamic path updates.
+ */
 int main(int argc, char **argv)
 {
     auto n = nature::node::init_node(argc,argv,"path_manager");
@@ -43,6 +51,7 @@ int main(int argc, char **argv)
             nature::msg::Path path_msg;
             path_msg.header.frame_id = "odom";
             path_msg.poses.clear();
+            path_msg.poses.reserve(path.size());
             for (int32_t i = 0; i < path.size(); i++){
                 nature::msg::PoseStamped pose;
                 pose.pose.position.x = static_cast<float>(path[i][0]);

@@ -26,30 +26,62 @@ bool speedometer_rcvd = false;
 double mrzr_steering = 0.0;
 bool path_rcvd = false;
 
+/**
+ * @brief Handle incoming vehicle odometry.
+ * @param rcv_state Incoming odometry message.
+ * @details Updates the current vehicle state used by the controller.
+ */
 void OdometryCallback(nature::msg::OdometryPtr rcv_state) {
 	state = *rcv_state; 
 }
 
+/**
+ * @brief Handle incoming speedometer readings.
+ * @param rcv_speed Incoming speed message.
+ * @details Updates the speedometer value used for control when available.
+ */
 void SpeedCallback(nature::msg::Float64Ptr rcv_speed) {
 	mrzr_speedometer = rcv_speed->data;
   speedometer_rcvd = true; 
 }
 
+/**
+ * @brief Handle incoming steering sensor readings.
+ * @param rcv_steering Incoming steering angle message.
+ * @details Updates the steering measurement used for control smoothing.
+ */
 void SteeringCallback(nature::msg::Float64Ptr rcv_steering) {
 	mrzr_steering = rcv_steering->data;
 }
 
+/**
+ * @brief Handle incoming local path updates.
+ * @param rcv_control Incoming path message.
+ * @details Stores the path for pure pursuit tracking.
+ */
 void PathCallback(nature::msg::PathPtr rcv_control){
   control_msg.poses = rcv_control->poses;
   control_msg.header = rcv_control->header;
   path_rcvd = true;
 }
 
+/**
+ * @brief Handle incoming run-state updates.
+ * @param rcv_state Incoming state message.
+ * @details Updates the run state and triggers shutdown when requested.
+ */
 void StateCallback(nature::msg::Int32Ptr rcv_state){
   current_run_state = rcv_state->data;
   if (current_run_state==2)shutdown_condition = true;
 }
 
+/**
+ * @brief Compute distance between two 3D points.
+ * @param a First point.
+ * @param b Second point.
+ * @return Euclidean distance.
+ * @details Used for curvature estimation in path analysis.
+ */
 double length(nature::msg::Point a, nature::msg::Point b){
   double dx = a.x - b.x;
   double dy = a.y - b.y;
@@ -57,11 +89,27 @@ double length(nature::msg::Point a, nature::msg::Point b){
   return sqrt(dx*dx + dy*dy + dz*dz);
 }
 
+/**
+ * @brief Compute the area of a triangle from three points.
+ * @param a First point.
+ * @param b Second point.
+ * @param c Third point.
+ * @return Triangle area (scaled by 2, unsigned).
+ * @details Used as part of Menger curvature computation.
+ */
 float TriangleArea(nature::msg::Point a, nature::msg::Point b, nature::msg::Point c) {
 	float area = (float)fabs(a.x*(b.y - c.y) + b.x*(c.y - a.y) + c.x*(a.y - b.y));
 	return area;
 }
 
+/**
+ * @brief Compute Menger curvature from three points.
+ * @param a First point.
+ * @param b Second point.
+ * @param c Third point.
+ * @return Curvature value.
+ * @details Used to estimate curvature of the path for speed limiting.
+ */
 float MengerCurvature(nature::msg::Point a, nature::msg::Point b, nature::msg::Point c) {
 	float curv = 0.0f;
 	float denom = length(a, b)*length(b, c)*length(c, b);
@@ -75,6 +123,12 @@ float MengerCurvature(nature::msg::Point a, nature::msg::Point b, nature::msg::P
 	return curv;
 }
 
+/**
+ * @brief Compute the maximum curvature along a path.
+ * @param path Path message containing pose sequence.
+ * @return Maximum curvature value found.
+ * @details Iterates through triplets of points using Menger curvature.
+ */
 double GetMaxCurvature(nature::msg::Path path){
   double max_curvature = 0.0;
   if (path.poses.size() > 2) {
@@ -87,6 +141,14 @@ double GetMaxCurvature(nature::msg::Path path){
 }
 
 
+/**
+ * @brief Entry point for the control node.
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ * @return Exit code.
+ * @details Subscribes to paths and state, computes pure pursuit control
+ *          commands, and publishes drive commands to the vehicle.
+ */
 int main(int argc, char *argv[]){
   auto n = nature::node::init_node(argc,argv,"nature_control_node");
 
@@ -186,6 +248,7 @@ int main(int argc, char *argv[]){
   while (nature::node::ok()){
     nature::msg::Twist dc;
     bool time_to_quit = false;
+    bool have_path = path_rcvd && !control_msg.poses.empty();
 
     // tell the controller the current vehicle state
     float vel = 0.0f;
@@ -204,7 +267,11 @@ int main(int argc, char *argv[]){
       // bring to a smooth stop and shut down
       controller.SetDesiredSpeed(0.0f);
       if (vel<0.5f)time_to_quit = true;
-      dc = controller.GetDcFromTraj(control_msg, goal);
+      if (have_path) {
+        dc = controller.GetDcFromTraj(control_msg, goal);
+      } else {
+        dc = nature::msg::Twist();
+      }
       dc.linear.x = 0.0f;
       dc.angular.z = 0.0f;
       dc.linear.y = -1.0f;
@@ -220,12 +287,20 @@ int main(int argc, char *argv[]){
       
       controller.SetDesiredSpeed(desired_velocity);
       //controller.SetDesiredSpeed(vehicle_speed);
-      dc = controller.GetDcFromTraj(control_msg, goal);
+      if (have_path) {
+        dc = controller.GetDcFromTraj(control_msg, goal);
+      } else {
+        dc = nature::msg::Twist();
+      }
     }
     else if (current_run_state==-1 || current_run_state==1){
       // bring to a smooth stop and wait / idle
       controller.SetDesiredSpeed(0.0f);
-      dc = controller.GetDcFromTraj(control_msg, goal);
+      if (have_path) {
+        dc = controller.GetDcFromTraj(control_msg, goal);
+      } else {
+        dc = nature::msg::Twist();
+      }
       if (current_run_state==-1)dc.linear.x = 0.0f;
     }
     else if (current_run_state==3){
@@ -272,7 +347,7 @@ int main(int argc, char *argv[]){
     // break the loop when an end state is reached
     if (time_to_quit)break;
     
-    if(display_markers){
+    if(display_markers && have_path){
       nature::msg::PointStamped next_waypoint_msg;
       next_waypoint_msg.point.x = goal.x;
       next_waypoint_msg.point.y = goal.y;

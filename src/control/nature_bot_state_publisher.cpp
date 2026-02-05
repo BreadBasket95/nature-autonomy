@@ -7,11 +7,24 @@
 nature::msg::Odometry latest_odom;
 bool odom_rcvd = false;
 
+/**
+ * @brief Handle incoming odometry updates.
+ * @param rcv_odom Incoming odometry message.
+ * @details Stores the latest odometry for publishing as a PoseStamped.
+ */
 void OdometryCallback(nature::msg::OdometryPtr rcv_odom) {
   latest_odom = *rcv_odom;
   odom_rcvd = true;
 }
 
+/**
+ * @brief Entry point for the state publisher node.
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ * @return Exit code.
+ * @details Subscribes to odometry and republishes the pose component for
+ *          consumers that only need pose data.
+ */
 int main(int argc, char **argv) {
   auto n = nature::node::init_node(argc, argv, "nature_state_publisher");
 

@@ -24,6 +24,13 @@ float cull_lidar_points_dist_sqr = 10000.0f;
 float blanking_distance = 0.0f;
 float blanking_distance_sqr = 0.0f;
 
+/**
+ * @brief Compute squared distance between a lidar point and the vehicle pose.
+ * @param odom_pose Vehicle position from odometry.
+ * @param point Lidar point in the same frame.
+ * @return Squared Euclidean distance.
+ * @details Used for culling and blanking points around the vehicle.
+ */
 double CalcLidarPointToRobotDistanceSquared(const nature::msg::Point& odom_pose, const nature::msg::Point32& point){
 	double dx = odom_pose.x - point.x;
 	double dy = odom_pose.y - point.y;
@@ -31,7 +38,18 @@ double CalcLidarPointToRobotDistanceSquared(const nature::msg::Point& odom_pose,
 	return (dx*dx + dy*dy + dz*dz);
 }
 
+/**
+ * @brief Choose the best-matching pose for a received point cloud.
+ * @param pose_to_use Output pose selected from the pose buffer.
+ * @param rcv_cloud Incoming point cloud message.
+ * @return Time difference (seconds) between the selected pose and the cloud.
+ * @details Finds the pose whose timestamp is closest to the cloud time.
+ */
 double GetPoseToUse(nature::msg::Odometry & pose_to_use, nature::msg::PointCloud2Ptr rcv_cloud){
+  if (current_pose_list.empty()) {
+    pose_to_use = current_pose;
+    return 0.0;
+  }
   double dt = 1.0;
   for (int i=0;i<current_pose_list.size();i++){
     double dt_this = fabs(nature::node::seconds_from_header(current_pose_list[i].header) - nature::node::seconds_from_header(rcv_cloud->header));
@@ -43,27 +61,38 @@ double GetPoseToUse(nature::msg::Odometry & pose_to_use, nature::msg::PointCloud
 	return dt;
 }
 
+/**
+ * @brief Handle a point cloud already registered into the odom frame.
+ * @param rcv_cloud Incoming point cloud message.
+ * @details Converts the cloud, applies filtering/culling, updates the elevation
+ *          grid, and marks the grid as created.
+ */
 void PointCloudCallbackRegistered(nature::msg::PointCloud2Ptr rcv_cloud){
 	// assumes point cloud is already registered to odom frame
 	nature::msg::PointCloud point_cloud;
 	
   bool converted = nature::messaging::convertPointCloud2ToPointCloud(*rcv_cloud, point_cloud);
 	if (converted && odom_rcvd){
+		nature::msg::Odometry pose_to_use = current_pose;
+		if (!current_pose_list.empty()) {
+			GetPoseToUse(pose_to_use, rcv_cloud);
+		}
+		const float pose_z = pose_to_use.pose.pose.position.z;
 		std::vector<nature::msg::Point32> points;
+		points.reserve(point_cloud.points.size());
 		std::vector<std::vector<float>> channel_values;
 		for(int c = 0; c < point_cloud.channels.size(); c++){
 			channel_values.push_back(std::vector<float>());
+			channel_values.back().reserve(point_cloud.points.size());
 		}
 		for (int p=0;p<point_cloud.points.size();p++){
 			nature::msg::Point32 tp;
 			tp.x = point_cloud.points[p].x;
 			tp.y = point_cloud.points[p].y;
 			tp.z = point_cloud.points[p].z;
-			if ( !(tp.x==0.0 && tp.y==0.0) && !std::isnan(tp.x) && (tp.z-current_pose.pose.pose.position.z)<overhead_clearance ){
+			if ( !(tp.x==0.0 && tp.y==0.0) && !std::isnan(tp.x) && (tp.z - pose_z) < overhead_clearance ){
 
 				bool add_point = true;
-				nature::msg::Odometry pose_to_use;
-				GetPoseToUse(pose_to_use, rcv_cloud);
 				double dr2 = CalcLidarPointToRobotDistanceSquared(pose_to_use.pose.pose.position, tp); 
 				if (cull_lidar_points){
 					add_point = dr2 < cull_lidar_points_dist_sqr;
@@ -71,7 +100,11 @@ void PointCloudCallbackRegistered(nature::msg::PointCloud2Ptr rcv_cloud){
 				if(add_point && dr2> blanking_distance_sqr){
 					points.push_back(tp);
 					for(int c = 0; c < point_cloud.channels.size(); c++){
-						channel_values[c].push_back(point_cloud.channels[c].values[p]);
+						float value = 0.0f;
+						if (p < point_cloud.channels[c].values.size()) {
+							value = point_cloud.channels[c].values[p];
+						}
+						channel_values[c].push_back(value);
 					}
 				}
 
@@ -87,6 +120,12 @@ void PointCloudCallbackRegistered(nature::msg::PointCloud2Ptr rcv_cloud){
 	}
 }
 
+/**
+ * @brief Handle a point cloud in the sensor frame (unregistered).
+ * @param rcv_cloud Incoming point cloud message.
+ * @details Uses the nearest odometry pose to transform points into odom, then
+ *          filters/culls and updates the elevation grid.
+ */
 void PointCloudCallbackUnregistered(nature::msg::PointCloud2Ptr rcv_cloud){
 	nature::msg::PointCloud point_cloud;
 	
@@ -97,12 +136,14 @@ void PointCloudCallbackUnregistered(nature::msg::PointCloud2Ptr rcv_cloud){
 	std::vector<std::vector<float>> channel_values;
 	for(int c = 0; c < point_cloud.channels.size(); c++){
 		channel_values.push_back(std::vector<float>());
+		channel_values.back().reserve(point_cloud.points.size());
 	}
 	if (converted && fabs(dt)<time_register_window && odom_rcvd){
-    nature::msg_tf::Quaternion q(pose_to_use.pose.pose.orientation.x, pose_to_use.pose.pose.orientation.y, pose_to_use.pose.pose.orientation.z, current_pose.pose.pose.orientation.w);
+    nature::msg_tf::Quaternion q(pose_to_use.pose.pose.orientation.x, pose_to_use.pose.pose.orientation.y, pose_to_use.pose.pose.orientation.z, pose_to_use.pose.pose.orientation.w);
     nature::msg_tf::Matrix3x3 R(q);
     nature::msg_tf::Vector3 origin(pose_to_use.pose.pose.position.x, pose_to_use.pose.pose.position.y, pose_to_use.pose.pose.position.z);
 		std::vector<nature::msg::Point32> points;
+		points.reserve(point_cloud.points.size());
 		for (int p=0;p<point_cloud.points.size();p++){
       nature::msg_tf::Vector3 v;
 			v = nature::msg_tf::Vector3(point_cloud.points[p].x, point_cloud.points[p].y,point_cloud.points[p].z);
@@ -114,12 +155,16 @@ void PointCloudCallbackUnregistered(nature::msg::PointCloud2Ptr rcv_cloud){
 				tp.y = vp.y();
 				tp.z = vp.z();
 				float dr2 = CalcLidarPointToRobotDistanceSquared(pose_to_use.pose.pose.position, tp);
-				if ( (tp.z-current_pose.pose.pose.position.z)<overhead_clearance &&
+				if ( (tp.z - pose_to_use.pose.pose.position.z) < overhead_clearance &&
              		(!cull_lidar_points || dr2 < cull_lidar_points_dist_sqr)
 								 && dr2 > blanking_distance_sqr){
 					points.push_back(tp);
 					for(int c = 0; c < point_cloud.channels.size(); c++){
-						channel_values[c].push_back(point_cloud.channels[c].values[p]);
+						float value = 0.0f;
+						if (p < point_cloud.channels[c].values.size()) {
+							value = point_cloud.channels[c].values[p];
+						}
+						channel_values[c].push_back(value);
 					}
 				}
 				
@@ -134,6 +179,11 @@ void PointCloudCallbackUnregistered(nature::msg::PointCloud2Ptr rcv_cloud){
 		grid_created = true;
 	}
 }
+/**
+ * @brief Dispatch point cloud handling based on registration setting.
+ * @param rcv_cloud Incoming point cloud message.
+ * @details Calls registered or unregistered callback depending on configuration.
+ */
 void PointCloudCallback(nature::msg::PointCloud2Ptr rcv_cloud){
 	if (use_registered){
 		PointCloudCallbackRegistered(rcv_cloud);
@@ -143,6 +193,11 @@ void PointCloudCallback(nature::msg::PointCloud2Ptr rcv_cloud){
 	}
 }
 
+/**
+ * @brief Handle incoming odometry and update pose buffer.
+ * @param rcv_odom Incoming odometry message.
+ * @details Stores the most recent pose and maintains a bounded history.
+ */
 void OdometryCallback(nature::msg::OdometryPtr rcv_odom){
 	current_pose = *rcv_odom;
 	odom_rcvd = true;
@@ -150,6 +205,14 @@ void OdometryCallback(nature::msg::OdometryPtr rcv_odom){
 	if (current_pose_list.size()>50) current_pose_list.erase(current_pose_list.begin());
 }
 
+/**
+ * @brief Entry point for the perception node.
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ * @return Exit code.
+ * @details Initializes subscriptions, configures the elevation grid, and
+ *          publishes occupancy grids for planning and visualization.
+ */
 int main(int argc, char *argv[]) {
 
 	grid_created = false;

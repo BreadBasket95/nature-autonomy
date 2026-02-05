@@ -24,21 +24,41 @@ nature::msg::OccupancyGrid segmentation_grid;
 nature::msg::Path current_waypoints;
 bool waypoints_rcvd = false;
 
+/**
+ * @brief Handle incoming odometry updates.
+ * @param rcv_odom Incoming odometry message.
+ * @details Stores the current odometry for path planning.
+ */
 void OdometryCallback(nature::msg::OdometryPtr rcv_odom)
 {
   odom = *rcv_odom;
   odom_rcvd = true;
 }
 
+/**
+ * @brief Handle incoming occupancy grid updates.
+ * @param rcv_grid Incoming occupancy grid.
+ * @details Updates the current cost map for A* planning.
+ */
 void MapCallback(nature::msg::OccupancyGridPtr rcv_grid)
 {
   current_grid = *rcv_grid;
 }
 
+/**
+ * @brief Handle incoming segmentation grid updates.
+ * @param rcv_grid Incoming segmentation grid.
+ * @details Stores semantic grid information used by the planner.
+ */
 void SegmentationMapCallback(nature::msg::OccupancyGridPtr rcv_grid){
     segmentation_grid = *rcv_grid;
 }
 
+/**
+ * @brief Handle incoming global waypoint updates.
+ * @param rcv_waypoints Incoming waypoint path.
+ * @details Replaces the current waypoint list with the received one.
+ */
 void WaypointCallback(nature::msg::PathPtr rcv_waypoints)
 {
   //std::cout << "Waypoints received!" << std::endl;
@@ -48,6 +68,14 @@ void WaypointCallback(nature::msg::PathPtr rcv_waypoints)
 
 }
 
+/**
+ * @brief Entry point for the global path planning node.
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ * @return Exit code.
+ * @details Subscribes to maps and waypoints, runs A* planning to generate
+ *          a global path, and publishes path and waypoint progress.
+ */
 int main(int argc, char *argv[])
 {
   auto n = nature::node::init_node(argc, argv, "nature_global_path_node");
@@ -150,7 +178,7 @@ int main(int argc, char *argv[])
       state_pub->publish(state);
     }
 
-    if (odom_rcvd && state.data != -1){ // data received and not in startup mode
+    if (odom_rcvd && state.data != -1 && !current_grid.data.empty()){ // data received and not in startup mode
       std::vector<float> pos;
       pos.push_back(odom.pose.pose.position.x);
       pos.push_back(odom.pose.pose.position.y);
@@ -160,6 +188,7 @@ int main(int argc, char *argv[])
       nature::msg::Path path_msg;
       path_msg.header.frame_id = "odom";
       path_msg.poses.clear();
+      path_msg.poses.reserve(path.size() + current_waypoints.poses.size());
       for (int32_t i = 0; i < path.size(); i++){
         nature::msg::PoseStamped pose;
         pose.pose.position.x = static_cast<float>(path[i][0]);

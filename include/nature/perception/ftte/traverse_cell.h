@@ -27,6 +27,11 @@ namespace traverselib {
 
 class TraverseCell {
 public:
+	/**
+	 * @brief Construct a traversal cell with default sentinel values.
+	 * @details Initializes extrema and counters to safe defaults used when
+	 *          accumulating lidar hits in the FTTE voxel grid.
+	 */
 	TraverseCell() {
 		highest = std::numeric_limits<float>::lowest();
 		lowest = std::numeric_limits<float>::max();

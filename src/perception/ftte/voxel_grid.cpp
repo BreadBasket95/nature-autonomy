@@ -30,6 +30,15 @@ Copyright 2022 (C) Mississippi State University
 namespace traverselib {
 
 /// Allocate a 2D vector
+/**
+ * @brief Allocate a 2D vector with an initial value.
+ * @tparam T Element type.
+ * @param nx Number of rows.
+ * @param ny Number of columns.
+ * @param initval Initial value for all elements.
+ * @return 2D vector sized nx by ny.
+ * @details Utility used by the FTTE voxel grid to allocate buffers.
+ */
 template <class T>
 inline std::vector< std::vector<T> > Allocate2DVector(int nx, int ny, T initval) {
 	std::vector< std::vector<T> > A;
@@ -44,6 +53,16 @@ inline std::vector< std::vector<T> > Allocate2DVector(int nx, int ny, T initval)
 };
 
 /// Allocate a 3D vector
+/**
+ * @brief Allocate a 3D vector with an initial value.
+ * @tparam T Element type.
+ * @param nx Number of rows.
+ * @param ny Number of columns.
+ * @param nz Number of depth layers.
+ * @param initval Initial value for all elements.
+ * @return 3D vector sized nx by ny by nz.
+ * @details Utility used by the FTTE voxel grid to allocate buffers.
+ */
 template <class T>
 inline std::vector< std::vector< std::vector<T> > > Allocate3DVector(int nx, int ny, int nz, T initval) {
 	std::vector< std::vector< std::vector<T> > > A;

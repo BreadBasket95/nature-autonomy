@@ -6,12 +6,25 @@
 #include "nature/perception/point_cloud_generator.h"
 
 nature::msg::Twist twist;
+/**
+ * @brief Update the simulated twist command from incoming control messages.
+ * @param rcv_msg Incoming twist command.
+ * @details Updates throttle, braking, and steering fields used in simulation.
+ */
 void TwistCallback(nature::msg::TwistPtr rcv_msg){
 	twist.linear.x = rcv_msg->linear.x; // throttle
 	twist.linear.y = rcv_msg->linear.y; // braking
 	twist.angular.z = rcv_msg->angular.z; // steering
 }
 
+/**
+ * @brief Entry point for the simulation test node.
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ * @return Exit code.
+ * @details Publishes synthetic odometry and point clouds and accepts control
+ *          commands to drive a simple kinematic simulation.
+ */
 int main(int argc, char **argv){
 
   auto n = nature::node::init_node(argc,argv,"nature_simulation_test_node");
@@ -26,6 +39,8 @@ int main(int argc, char **argv){
 	// determine if sim time will be used
 	bool use_sim_time;
 	n->get_parameter("use_sim_time", use_sim_time, false);
+	bool sim_sleep = false;
+	n->get_parameter("~sim_sleep", sim_sleep, false);
 	std::shared_ptr<nature::node::ClockPublisher> clock_pub;
 	if (use_sim_time){
     clock_pub = nature::node::ClockPublisher::make_shared("clock", 1, n);
@@ -123,6 +138,9 @@ int main(int argc, char **argv){
 		if (use_sim_time ){
       clock_pub->publish(elapsed_time);
 			elapsed_time += dt;
+			if (sim_sleep) {
+				rate.sleep();
+			}
 		}
 		else {
 			rate.sleep();

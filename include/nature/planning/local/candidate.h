@@ -19,21 +19,28 @@ namespace planning{
 class Candidate {
 public:
 	/**
-	 * Create an empty candidate path.
+	 * @brief Construct an empty candidate path.
+	 * @details Leaves polynomial and scoring fields in their default state; call
+	 *          Initialize before evaluation. Used by the local planner to seed
+	 *          candidate lists.
 	 */
 	Candidate(){}
 
 	/**
-	 * Create a candidate path and initialize with a polynomial.
-	 * \param p The cubic polynomial to initialize the path to.
+	 * @brief Construct a candidate path from a polynomial.
+	 * @param p The cubic polynomial defining the path in Frenet space.
+	 * @details Calls Initialize to precompute derivatives used for curvature and
+	 *          safety evaluation in the local planner.
 	 */ 
 	Candidate(Polynomial p) {
 		Initialize(p);
 	}
 
 	/**
-	 * Initialize a candidate path with a polynomial.
-	 * \param p The cubic polynomial to initialize the path to.
+	 * @brief Initialize the candidate path with a polynomial.
+	 * @param p The cubic polynomial defining the path.
+	 * @details Precomputes first/second derivatives and resets scoring flags.
+	 *          Called by the local planner when generating new candidates.
 	 */ 
 	void Initialize(Polynomial p) {
 		curve_ = p;
@@ -49,7 +56,9 @@ public:
 	}
 
 	/**
-	 * Assignment operator for a candidate path.
+	 * @brief Assign another candidate to this one.
+	 * @param c Candidate to copy.
+	 * @details Copies polynomial, derivatives, and all scoring fields.
 	 */ 
 	void operator = (const Candidate &c) {
 		curve_ = c.curve_;
@@ -69,151 +78,194 @@ public:
 	}
 
 	/**
-	 * Get the signed rho value of the candidate path at arc length s.
-	 * \param s The arc length along the path.
+	 * @brief Evaluate lateral offset at arc length s.
+	 * @param s The arc length along the path.
+	 * @return Signed lateral offset (rho) at s.
+	 * @details Evaluates the candidate polynomial; used for path sampling.
 	 */ 
 	float At(float s) { return curve_.At(s); }
 
 	/**
-	 * Get the signed rho value of the first derivative of the candidate path at arc length s.
-	 * \param s The arc length along the path.
+	 * @brief Evaluate first derivative of lateral offset at arc length s.
+	 * @param s The arc length along the path.
+	 * @return First derivative of rho at s.
+	 * @details Used to compute curvature and smoothness penalties.
 	 */ 
 	float DerivativeAt(float s) { return first_deriv_.At(s); }
 
 	/**
-	 * Get the signed rho value of the second derivative of the candidate path at arc length s.
-	 * \param s The arc length along the path.
+	 * @brief Evaluate second derivative of lateral offset at arc length s.
+	 * @param s The arc length along the path.
+	 * @return Second derivative of rho at s.
+	 * @details Used to compute curvature magnitude for safety checks.
 	 */ 
 	float SecondDerivativeAt(float s) { return second_deriv_.At(s); }
 
 	/**
-	 * Return true if the candidate goes out of bounds.
+	 * @brief Check if the candidate leaves the drivable corridor.
+	 * @return True if out of bounds.
+	 * @details Flag set during collision and boundary checks.
 	 */ 
 	bool IsOutOfBounds() { return out_of_bounds_; }
 
-		/**
-	 * Return true if the candidate hits an obstacle.
+	/**
+	 * @brief Check if the candidate intersects an obstacle.
+	 * @return True if an obstacle collision was detected.
+	 * @details Flag set by collision checking against occupancy grids.
 	 */ 
 	bool HitsObstacle() { return hits_obstacle_; }
 
 	/**
-	 * Set to true if the candidate goes out of bounds.
-	 * \param oob True if the candidate goes out of bounds.
+	 * @brief Set the out-of-bounds flag.
+	 * @param oob True if the candidate goes out of bounds.
+	 * @details Written by boundary checks in the local planner.
 	 */ 
 	void SetOutOfBounds(bool oob) { out_of_bounds_ = oob; }
 
-		/**
-	 * Set to true if the candidate hits an obstacle.
-	 * \param ho True if the candidate hits an obstacle.
+	/**
+	 * @brief Set the obstacle-hit flag.
+	 * @param ho True if the candidate hits an obstacle.
+	 * @details Written by collision checking routines.
 	 */ 
 	void SetHitsObstacle(bool ho) { hits_obstacle_ = ho; }
 
 	/**
-	 * Set the cumulative cost of the path.
-	 * \param cost The cumulative cost of the path.
+	 * @brief Set the cumulative cost of the path.
+	 * @param cost The cumulative cost.
+	 * @details Aggregate score used to rank candidates.
 	 */ 
 	void SetCost(float cost) { cost_ = cost; }
 
 	/**
-	 * Get the cumulative cost of the path. 
+	 * @brief Get the cumulative cost of the path.
+	 * @return Cumulative cost value.
+	 * @details Used when selecting the best candidate.
 	 */
 	float GetCost() { return cost_; }
 
 	/**
-	 * Set the rank of the path.
-	 * \param rank The rank of the path.
+	 * @brief Set the rank of the path.
+	 * @param rank Rank value (lower is better).
+	 * @details Assigned by the local planner after scoring.
 	 */ 
 	void SetRank(int rank) { rank_ = rank; }
 
 	/**
-	 * Get the rank of the path. 
+	 * @brief Get the rank of the path.
+	 * @return Rank value.
+	 * @details Used for diagnostics and selection.
 	 */
 	int GetRank() { return rank_; }
 
 	/**
-	 * Set the max curvature of the path.
-	 * \param mc The max curvature of the path.
+	 * @brief Set the maximum curvature of the path.
+	 * @param mc Max curvature value.
+	 * @details Stored for safety and comfort scoring.
 	 */ 
 	void SetMaxCurvature(float mc) { max_curvature_ = mc; }
 
 	/**
-	 * Get the max curvature of the path.
+	 * @brief Get the maximum curvature of the path.
+	 * @return Max curvature value.
+	 * @details Used in reporting and selection.
 	 */ 
 	float GetMaxCurvature() { return max_curvature_; }
 
 	/**
-	 * Set the comfortability of the path.
-	 * \param comfort The comfortability of the path.
+	 * @brief Set the comfortability score of the path.
+	 * @param comfort Comfortability score.
+	 * @details Higher comfortability typically means lower curvature changes.
 	 */ 
 	void SetComfortability(float comfort) { comfortability_ = comfort; }
 
 	/**
-	 * Get the comfortability of the path.
+	 * @brief Get the comfortability score of the path.
+	 * @return Comfortability score.
+	 * @details Used by the local planner to rank candidates.
 	 */ 
 	float GetComfortability() { return comfortability_; }
 
 	/**
-	 * Set the static safety of the path.
-	 * \param stat_safe The static safety of the path.
+	 * @brief Set the static safety score of the path.
+	 * @param stat_safe Static safety score.
+	 * @details Derived from static obstacle clearance.
 	 */ 
 	void SetStaticSafety(float stat_safe) { static_safety_ = stat_safe; }
 
 	/**
-	 * Get the static safety of the path.
+	 * @brief Get the static safety score of the path.
+	 * @return Static safety score.
+	 * @details Used by the local planner during ranking.
 	 */ 
 	float GetStaticSafety() { return static_safety_; }
 
 	/**
-	 * Set the dynamic safety of the path.
-	 * \param dyn_safe The dynamic safety of the path.
+	 * @brief Set the dynamic safety score of the path.
+	 * @param dyn_safe Dynamic safety score.
+	 * @details Derived from predicted motion and dynamic obstacles.
 	 */ 
 	void SetDynamicSafety(float dyn_safe) { dynamic_safety_ = dyn_safe; }
 
 	/**
-	 * Get the dynamic safety of the path.
+	 * @brief Get the dynamic safety score of the path.
+	 * @return Dynamic safety score.
+	 * @details Used by the local planner during ranking.
 	 */ 
 	float GetDynamicSafety() { return dynamic_safety_; }
 
 	/**
-	 * Set the path deviation cost of the path.
-	 * \param rho_cost The path deviation cost of the path.
+	 * @brief Set the path deviation cost.
+	 * @param rho_cost Path deviation cost.
+	 * @details Captures how far the candidate deviates from the centerline.
 	 */ 
 	void SetRhoCost(float rho_cost) { rho_final_ = rho_cost; }
 
 	/**
-	 * Get the path deviation cost of the path.
+	 * @brief Get the path deviation cost.
+	 * @return Path deviation cost.
+	 * @details Used in scoring relative to the centerline.
 	 */ 
 	float GetRhoCost() { return rho_final_; }
 
 	/**
-	 * Set the max length of the path.
-	 * \param ml The max length of the path.
+	 * @brief Set the maximum length of the path.
+	 * @param ml Maximum length.
+	 * @details Used to cap candidate paths in evaluation.
 	 */ 
 	void SetMaxLength(float ml) { max_length_ = ml; }
 
 	/**
-	 * Get the max length of the path
+	 * @brief Get the maximum length of the path.
+	 * @return Maximum length.
+	 * @details Used by the planner to limit candidate extension.
 	 */ 
 	float GetMaxLength() { return max_length_; }
 
 	/**
-	 * Set the initial s-value of the path, with respect to the centerline s.
-	 * \param s0 The initial s-value of the path.
+	 * @brief Set the initial s-value of the path.
+	 * @param s0 Initial s-value with respect to the centerline.
+	 * @details Used when aligning candidates to the centerline.
 	 */ 
 	void SetS0(float s0) { s0_ = s0; }
 
 	/**
-	 * Get the initial s-value of the path.
+	 * @brief Get the initial s-value of the path.
+	 * @return Initial s-value.
+	 * @details Used for diagnostics and path reconstruction.
 	 */ 
 	float GetS0() { return s0_; }
 
     /**
-    * Sets the terrain segmentation cost based on labeled terrain traversed
+    * @brief Set the terrain segmentation cost.
+    * @param segmentation_cost Cost derived from labeled terrain.
+    * @details Used to penalize candidates that cross undesirable classes.
     */
     void SetSegmentationCost(float segmentation_cost) { segmentation_cost_ = segmentation_cost; }
 
     /**
-    * Gets the terrain segmentation cost based on the terrain traversed
+    * @brief Get the terrain segmentation cost.
+    * @return Segmentation cost value.
+    * @details Used when ranking candidates with semantic terrain data.
     */
     float GetSegmentationCost() const { return segmentation_cost_; }
 

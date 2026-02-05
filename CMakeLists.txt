@@ -19,6 +19,9 @@ if (OpenMP_CXX_FOUND)
   set(OPENMP_LIB OpenMP::OpenMP_CXX)
 endif()
 
+option(NATURE_ENABLE_VIO_DEPTH "Build VIO + depth completion pipeline" OFF)
+option(NATURE_ENABLE_ZMQ "Enable ZMQ transport" OFF)
+
 add_executable(nature_path_manager_node
   src/planning/global/path_manager_node.cpp
   src/node/node_proxy.cpp
@@ -135,3 +138,136 @@ foreach(target_name
     target_link_libraries(${target_name} ${OPENMP_LIB})
   endif()
 endforeach()
+
+if (NATURE_ENABLE_VIO_DEPTH)
+  find_package(OpenCV REQUIRED)
+  find_package(Eigen3 REQUIRED)
+  find_package(CUDA REQUIRED)
+  enable_language(CUDA)
+
+  set(EIGEN_INCLUDE_DIRS ${EIGEN3_INCLUDE_DIRS})
+  if (NOT EIGEN_INCLUDE_DIRS)
+    set(EIGEN_INCLUDE_DIRS ${EIGEN3_INCLUDE_DIR})
+  endif()
+
+  find_path(TENSORRT_INCLUDE_DIR NvInfer.h
+    PATHS /usr/include /usr/local/include /usr/include/aarch64-linux-gnu /usr/include/x86_64-linux-gnu)
+  find_library(TENSORRT_LIB nvinfer
+    PATHS /usr/lib /usr/local/lib /usr/lib/aarch64-linux-gnu /usr/lib/x86_64-linux-gnu)
+  find_library(NVONNXPARSER_LIB nvonnxparser
+    PATHS /usr/lib /usr/local/lib /usr/lib/aarch64-linux-gnu /usr/lib/x86_64-linux-gnu)
+
+  if (NOT TENSORRT_INCLUDE_DIR OR NOT TENSORRT_LIB OR NOT NVONNXPARSER_LIB)
+    message(FATAL_ERROR "TensorRT not found. Set TENSORRT_INCLUDE_DIR/TENSORRT_LIB/NVONNXPARSER_LIB.")
+  endif()
+
+  find_path(OPENVINS_INCLUDE_DIR ov_msckf/VioManager.h
+    PATHS /usr/local/include /usr/include)
+  find_library(OPENVINS_CORE_LIB ov_core
+    PATHS /usr/local/lib /usr/lib)
+  find_library(OPENVINS_MSCKF_LIB ov_msckf
+    PATHS /usr/local/lib /usr/lib)
+
+  set(HAVE_OPENVINS FALSE)
+  if (OPENVINS_INCLUDE_DIR AND OPENVINS_CORE_LIB AND OPENVINS_MSCKF_LIB)
+    set(HAVE_OPENVINS TRUE)
+  else()
+    message(WARNING "OpenVINS not found; VIOEstimator will run in placeholder mode.")
+  endif()
+
+  add_library(nature_vio
+    src/perception/vio/vio_estimator.cpp
+  )
+  target_include_directories(nature_vio PUBLIC
+    include
+    ${OpenCV_INCLUDE_DIRS}
+    ${EIGEN_INCLUDE_DIRS}
+  )
+  if (HAVE_OPENVINS)
+    target_include_directories(nature_vio PUBLIC ${OPENVINS_INCLUDE_DIR})
+    target_compile_definitions(nature_vio PRIVATE NATURE_HAS_OPENVINS)
+    target_link_libraries(nature_vio ${OPENVINS_CORE_LIB} ${OPENVINS_MSCKF_LIB})
+  endif()
+  target_link_libraries(nature_vio ${OpenCV_LIBS})
+  if (TARGET Eigen3::Eigen)
+    target_link_libraries(nature_vio Eigen3::Eigen)
+  endif()
+
+  add_library(nature_depth
+    src/perception/depth/depth_net.cpp
+    src/perception/depth/feature_projection.cu
+  )
+  target_include_directories(nature_depth PUBLIC
+    include
+    ${TENSORRT_INCLUDE_DIR}
+    ${CUDA_INCLUDE_DIRS}
+    ${EIGEN_INCLUDE_DIRS}
+  )
+  target_compile_definitions(nature_depth PRIVATE NATURE_HAS_CUDA NATURE_HAS_TENSORRT)
+  target_link_libraries(nature_depth ${CUDA_LIBRARIES} ${TENSORRT_LIB} ${NVONNXPARSER_LIB})
+  set_target_properties(nature_depth PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+  set_target_properties(nature_depth PROPERTIES CUDA_STANDARD 14 CUDA_STANDARD_REQUIRED ON)
+
+  add_library(nature_mapping
+    src/perception/mapping/occupancy_mapper.cpp
+    src/perception/mapping/occupancy_mapper_gpu.cu
+  )
+  target_include_directories(nature_mapping PUBLIC include ${EIGEN_INCLUDE_DIRS} ${CUDA_INCLUDE_DIRS})
+  target_compile_definitions(nature_mapping PRIVATE NATURE_HAS_CUDA)
+  target_link_libraries(nature_mapping ${CUDA_LIBRARIES})
+  set_target_properties(nature_mapping PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+  set_target_properties(nature_mapping PROPERTIES CUDA_STANDARD 14 CUDA_STANDARD_REQUIRED ON)
+  if (TARGET Eigen3::Eigen)
+    target_link_libraries(nature_mapping Eigen3::Eigen)
+  endif()
+
+  add_executable(nature_vio_depth_node
+    src/perception/vio_depth_node.cpp
+    src/node/node_proxy.cpp
+  )
+  target_include_directories(nature_vio_depth_node PRIVATE
+    include
+    ${OpenCV_INCLUDE_DIRS}
+    ${EIGEN_INCLUDE_DIRS}
+  )
+  target_compile_definitions(nature_vio_depth_node PRIVATE NATURE_HAS_CUDA NATURE_HAS_TENSORRT)
+  target_link_libraries(nature_vio_depth_node
+    nature_vio
+    nature_depth
+    nature_mapping
+    ${OpenCV_LIBS}
+    ${CUDA_LIBRARIES}
+    ${TENSORRT_LIB}
+    ${NVONNXPARSER_LIB}
+  )
+  if (TARGET Eigen3::Eigen)
+    target_link_libraries(nature_vio_depth_node Eigen3::Eigen)
+  endif()
+  if (X11_FOUND)
+    target_link_libraries(nature_vio_depth_node ${X11_LIBRARIES})
+  endif()
+  if (OpenMP_CXX_FOUND)
+    target_link_libraries(nature_vio_depth_node ${OPENMP_LIB})
+  endif()
+
+  if (NATURE_ENABLE_ZMQ)
+    find_path(ZMQ_INCLUDE_DIR zmq.h
+      PATHS /usr/include /usr/local/include)
+    find_library(ZMQ_LIB zmq
+      PATHS /usr/lib /usr/local/lib /usr/lib/aarch64-linux-gnu /usr/lib/x86_64-linux-gnu)
+    if (NOT ZMQ_INCLUDE_DIR OR NOT ZMQ_LIB)
+      message(FATAL_ERROR "ZMQ not found. Set ZMQ_INCLUDE_DIR/ZMQ_LIB.")
+    endif()
+
+    add_library(nature_transport
+      src/transport/zmq_transport.cpp
+    )
+    target_include_directories(nature_transport PUBLIC include ${ZMQ_INCLUDE_DIR})
+    target_compile_definitions(nature_transport PRIVATE NATURE_HAS_ZMQ)
+    target_link_libraries(nature_transport ${ZMQ_LIB})
+
+    target_include_directories(nature_vio_depth_node PRIVATE ${ZMQ_INCLUDE_DIR})
+    target_compile_definitions(nature_vio_depth_node PRIVATE NATURE_HAS_ZMQ)
+    target_link_libraries(nature_vio_depth_node nature_transport ${ZMQ_LIB})
+  endif()
+endif()

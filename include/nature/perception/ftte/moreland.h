@@ -27,8 +27,25 @@ Copyright 2022 (C) Mississippi State University
 
 namespace traverselib {
 
+/**
+ * @brief Map a scalar value to an RGB color using the Moreland colormap.
+ * @param x Input value to map.
+ * @param xmin Minimum of the input range.
+ * @param xmax Maximum of the input range.
+ * @return RGB color as glm::vec3.
+ * @details Clamps and normalizes x to the range, then computes a perceptually
+ *          balanced color. Used for traversability visualization.
+ */
 glm::vec3 MorelandColormap(float x, float xmin, float xmax);
 
+/**
+ * @brief Map a scalar value to a green-tinted Moreland-style color.
+ * @param x Input value to map.
+ * @param xmin Minimum of the input range.
+ * @param xmax Maximum of the input range.
+ * @return RGB color as glm::vec3.
+ * @details Variant colormap used for vegetation or safe-terrain overlays.
+ */
 glm::vec3 MorelandGreen(float x, float xmin, float xmax);
 
 } // namespace traverslib
